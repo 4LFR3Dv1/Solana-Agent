@@ -2,13 +2,16 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Artifact",
   "type": "object",
-  "required": ["id", "type", "path", "created_at"],
+  "required": ["id", "run_id", "command_id", "kind", "content", "content_hash", "size_bytes", "created_at"],
   "properties": {
     "id": { "type": "string" },
-    "type": { "type": "string" },
-    "path": { "type": "string" },
-    "created_at": { "type": "string" },
-    "description": { "type": "string" }
+    "run_id": { "type": "string" },
+    "command_id": { "type": ["string", "null"] },
+    "kind": { "type": "string" },
+    "content": { "type": "string" },
+    "content_hash": { "type": "string", "minLength": 64, "maxLength": 64 },
+    "size_bytes": { "type": "integer", "minimum": 0 },
+    "created_at": { "type": "string" }
   },
-  "additionalProperties": true
+  "additionalProperties": false
 }

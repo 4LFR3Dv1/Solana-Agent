@@ -24,9 +24,12 @@ def test_all_contracts_declare_json_schema_and_required_fields() -> None:
         assert isinstance(payload.get("required"), list), path.name
 
 
-def test_command_contract_has_terminal_failure_state() -> None:
+def test_command_contract_has_governed_lifecycle_states() -> None:
     payload = json.loads((CONTRACTS_ROOT / "command.schema.json").read_text(encoding="utf-8"))
     statuses = payload["properties"]["status"]["enum"]
 
+    assert "planned" in statuses
+    assert "authorized" in statuses
     assert "failed" in statuses
-    assert "completed" in statuses
+    assert "succeeded" in statuses
+    assert "rejected" in statuses

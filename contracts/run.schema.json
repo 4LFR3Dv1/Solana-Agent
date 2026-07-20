@@ -2,24 +2,18 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Run",
   "type": "object",
-  "required": ["id", "session_id", "started_at", "status"],
+  "required": ["id", "mission_id", "status", "metadata", "created_at", "updated_at"],
   "properties": {
     "id": { "type": "string" },
-    "session_id": { "type": "string" },
-    "started_at": { "type": "string" },
-    "finished_at": { "type": "string" },
+    "mission_id": { "type": "string" },
     "status": {
       "type": "string",
-      "enum": ["running", "completed", "failed", "cancelled"]
+      "enum": ["created", "running", "completed", "failed", "cancelled", "interrupted"]
     },
-    "commands": {
-      "type": "array",
-      "items": { "type": "object" }
-    },
-    "artifacts": {
-      "type": "array",
-      "items": { "type": "string" }
-    }
+    "metadata": { "type": "object" },
+    "error": { "type": ["object", "null"] },
+    "created_at": { "type": "string" },
+    "updated_at": { "type": "string" }
   },
-  "additionalProperties": true
+  "additionalProperties": false
 }

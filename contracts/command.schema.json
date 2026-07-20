@@ -2,19 +2,59 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Command",
   "type": "object",
-  "required": ["id", "name", "sensitive", "status"],
+  "required": [
+    "id",
+    "run_id",
+    "step_id",
+    "adapter",
+    "operation",
+    "arguments",
+    "cwd",
+    "timeout_seconds",
+    "idempotency_key",
+    "status",
+    "created_at",
+    "updated_at"
+  ],
   "properties": {
     "id": { "type": "string" },
-    "name": { "type": "string" },
-    "sensitive": { "type": "boolean" },
+    "run_id": { "type": "string" },
+    "step_id": { "type": "string" },
+    "adapter": { "type": "string" },
+    "operation": { "type": "string" },
+    "arguments": { "type": "object" },
+    "cwd": { "type": "string" },
+    "timeout_seconds": { "type": "integer", "minimum": 1 },
+    "idempotency_key": { "type": "string", "minLength": 64, "maxLength": 64 },
     "status": {
       "type": "string",
-      "enum": ["pending", "approved", "running", "completed", "failed"]
+      "enum": [
+        "planned",
+        "validating",
+        "approval_required",
+        "authorized",
+        "running",
+        "succeeded",
+        "failed",
+        "rejected",
+        "cancelled",
+        "interrupted",
+        "timed_out"
+      ]
     },
-    "argv": {
-      "type": "array",
-      "items": { "type": "string" }
-    }
+    "expected_state": { "type": ["string", "null"] },
+    "policy_decision": { "type": ["string", "null"] },
+    "policy_reason": { "type": ["string", "null"] },
+    "approval_id": { "type": ["string", "null"] },
+    "started_at": { "type": ["string", "null"] },
+    "finished_at": { "type": ["string", "null"] },
+    "exit_code": { "type": ["integer", "null"] },
+    "result": { "type": ["object", "null"] },
+    "error": { "type": ["object", "null"] },
+    "stdout_artifact_id": { "type": ["string", "null"] },
+    "stderr_artifact_id": { "type": ["string", "null"] },
+    "created_at": { "type": "string" },
+    "updated_at": { "type": "string" }
   },
-  "additionalProperties": true
+  "additionalProperties": false
 }
