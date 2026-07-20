@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Artifact",
+  "type": "object",
+  "required": ["id", "type", "path", "created_at"],
+  "properties": {
+    "id": { "type": "string" },
+    "type": { "type": "string" },
+    "path": { "type": "string" },
+    "created_at": { "type": "string" },
+    "description": { "type": "string" }
+  },
+  "additionalProperties": true
+}

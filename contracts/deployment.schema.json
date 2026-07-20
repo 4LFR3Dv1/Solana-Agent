@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Deployment",
+  "type": "object",
+  "required": ["program_id", "cluster", "wallet_address", "deploy_signature"],
+  "properties": {
+    "program_id": { "type": "string" },
+    "cluster": { "type": "string" },
+    "wallet_address": { "type": "string" },
+    "deploy_signature": { "type": "string" },
+    "explorer_link": { "type": "string" },
+    "idl_path": { "type": "string" },
+    "workspace_path": { "type": "string" },
+    "created_at": { "type": "string" }
+  },
+  "additionalProperties": true
+}

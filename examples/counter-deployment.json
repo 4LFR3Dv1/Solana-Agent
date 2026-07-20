@@ -1,0 +1,8 @@
+{
+  "program_id": "Example1111111111111111111111111111111111111",
+  "cluster": "devnet",
+  "wallet_address": "ExampleWallet111111111111111111111111111111",
+  "deploy_signature": "ExampleSignature111111111111111111111111111111",
+  "explorer_link": "https://explorer.solana.com/tx/ExampleSignature111111111111111111111111111111?cluster=devnet",
+  "created_at": "2026-06-29T00:00:00Z"
+}

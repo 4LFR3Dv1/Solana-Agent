@@ -1,0 +1,40 @@
+import * as anchor from "@coral-xyz/anchor";
+import idl from "../target/idl/__PROGRAM_SNAKE__.json";
+
+async function main() {
+  const provider = anchor.AnchorProvider.env();
+  anchor.setProvider(provider);
+
+  const program = new anchor.Program(idl as anchor.Idl, provider) as any;
+  const counter = anchor.web3.Keypair.generate();
+
+  const initializeSignature = await program.methods
+    .initialize()
+    .accounts({
+      counter: counter.publicKey,
+      authority: provider.wallet.publicKey,
+      systemProgram: anchor.web3.SystemProgram.programId,
+    })
+    .signers([counter])
+    .rpc();
+
+  const incrementSignature = await program.methods
+    .increment()
+    .accounts({
+      counter: counter.publicKey,
+      authority: provider.wallet.publicKey,
+    })
+    .rpc();
+
+  const counterAccount = await program.account.counter.fetch(counter.publicKey);
+
+  console.log(`COUNTER_PUBKEY=${counter.publicKey.toBase58()}`);
+  console.log(`INITIALIZE_SIGNATURE=${initializeSignature}`);
+  console.log(`INCREMENT_SIGNATURE=${incrementSignature}`);
+  console.log(`COUNT=${counterAccount.count.toString()}`);
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

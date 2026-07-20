@@ -1,0 +1,39 @@
+import * as anchor from "@coral-xyz/anchor";
+import { Program } from "@coral-xyz/anchor";
+import { expect } from "chai";
+
+describe("__PROGRAM_SLUG__", () => {
+  const provider = anchor.AnchorProvider.env();
+  anchor.setProvider(provider);
+
+  const program = anchor.workspace.__PROGRAM_CAMEL__ as Program<anchor.Idl>;
+
+  it("initialize > increment", async () => {
+    const counter = anchor.web3.Keypair.generate();
+
+    await program.methods
+      .initialize()
+      .accounts({
+        counter: counter.publicKey,
+        authority: provider.wallet.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([counter])
+      .rpc();
+
+    await program.methods
+      .increment()
+      .accounts({
+        counter: counter.publicKey,
+        authority: provider.wallet.publicKey,
+      })
+      .rpc();
+
+    const counterAccount = await program.account.counter.fetch(counter.publicKey);
+
+    expect(counterAccount.count.toString()).to.equal("1");
+    expect(counterAccount.authority.toBase58()).to.equal(
+      provider.wallet.publicKey.toBase58(),
+    );
+  });
+});

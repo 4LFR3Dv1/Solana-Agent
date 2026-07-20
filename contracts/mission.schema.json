@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Mission",
+  "type": "object",
+  "required": ["id", "type", "goal", "status"],
+  "properties": {
+    "id": { "type": "string" },
+    "type": { "type": "string" },
+    "goal": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "approved", "running", "completed", "failed"]
+    },
+    "workspace_path": { "type": "string" },
+    "cluster": { "type": "string" },
+    "inputs": { "type": "object" }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Approval",
+  "type": "object",
+  "required": ["id", "action", "approved", "approved_at"],
+  "properties": {
+    "id": { "type": "string" },
+    "action": { "type": "string" },
+    "approved": { "type": "boolean" },
+    "approved_at": { "type": "string" },
+    "approved_by": { "type": "string" },
+    "note": { "type": "string" }
+  },
+  "additionalProperties": true
+}
