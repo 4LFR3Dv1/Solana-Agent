@@ -11,6 +11,8 @@
       "enum": ["created", "running", "completed", "failed", "cancelled", "interrupted"]
     },
     "metadata": { "type": "object" },
+    "policy_snapshot": { "type": ["object", "null"] },
+    "policy_snapshot_hash": { "type": ["string", "null"] },
     "error": { "type": ["object", "null"] },
     "created_at": { "type": "string" },
     "updated_at": { "type": "string" }

@@ -8,6 +8,14 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from solana_agent.contracts.authority import (
+    ApprovalRecord,
+    ApprovalStatus,
+    PolicyDecision,
+    PolicyDecisionRecord,
+    PolicyEffect,
+    RiskLevel,
+)
 from solana_agent.contracts.command import CommandRecord, CommandStatus, require_command_transition
 from solana_agent.contracts.lifecycle import RunRecord, RunStatus
 
@@ -59,22 +67,37 @@ class JournalRepository:
         run_id: str,
         mission_id: str,
         metadata: dict[str, Any] | None = None,
+        policy_snapshot: dict[str, Any] | None = None,
     ) -> RunRecord:
         now = utc_now()
         with self.database.transaction() as connection:
             connection.execute(
                 """
-                INSERT INTO runs(id, mission_id, status, metadata_json, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO runs(
+                    id, mission_id, status, metadata_json, policy_snapshot_json,
+                    policy_snapshot_hash, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (run_id, mission_id, RunStatus.CREATED.value, canonical_json(metadata or {}), now, now),
+                (
+                    run_id,
+                    mission_id,
+                    RunStatus.CREATED.value,
+                    canonical_json(metadata or {}),
+                    canonical_json(policy_snapshot) if policy_snapshot else None,
+                    str(policy_snapshot["hash"]) if policy_snapshot else None,
+                    now,
+                    now,
+                ),
             )
             self._append_event(
                 connection,
                 run_id=run_id,
                 command_id=None,
                 event_type="run.created",
-                payload={"mission_id": mission_id},
+                payload={
+                    "mission_id": mission_id,
+                    "policy_snapshot_hash": policy_snapshot.get("hash") if policy_snapshot else None,
+                },
                 created_at=now,
             )
         return self.require_run(run_id)
@@ -192,6 +215,7 @@ class JournalRepository:
         policy_decision: str | None = None,
         policy_reason: str | None = None,
         approval_id: str | None = None,
+        policy_decision_id: str | None = None,
         exit_code: int | None = None,
         result: dict[str, Any] | None = None,
         error: dict[str, Any] | None = None,
@@ -206,19 +230,25 @@ class JournalRepository:
             current = CommandStatus(str(row["status"]))
             require_command_transition(current, target)
             started_at = now if target == CommandStatus.RUNNING else row["started_at"]
-            finished_at = now if target in {
-                CommandStatus.SUCCEEDED,
-                CommandStatus.FAILED,
-                CommandStatus.REJECTED,
-                CommandStatus.CANCELLED,
-                CommandStatus.INTERRUPTED,
-                CommandStatus.TIMED_OUT,
-            } else row["finished_at"]
+            finished_at = (
+                now
+                if target
+                in {
+                    CommandStatus.SUCCEEDED,
+                    CommandStatus.FAILED,
+                    CommandStatus.REJECTED,
+                    CommandStatus.CANCELLED,
+                    CommandStatus.INTERRUPTED,
+                    CommandStatus.TIMED_OUT,
+                }
+                else row["finished_at"]
+            )
             connection.execute(
                 """
                 UPDATE commands
                 SET status = ?, policy_decision = COALESCE(?, policy_decision),
                     policy_reason = COALESCE(?, policy_reason), approval_id = COALESCE(?, approval_id),
+                    policy_decision_id = COALESCE(?, policy_decision_id),
                     started_at = ?, finished_at = ?, exit_code = COALESCE(?, exit_code),
                     result_json = COALESCE(?, result_json), error_json = COALESCE(?, error_json),
                     stdout_artifact_id = COALESCE(?, stdout_artifact_id),
@@ -230,6 +260,7 @@ class JournalRepository:
                     policy_decision,
                     policy_reason,
                     approval_id,
+                    policy_decision_id,
                     started_at,
                     finished_at,
                     exit_code,
@@ -260,6 +291,214 @@ class JournalRepository:
                 created_at=now,
             )
         return self.require_command(command_id)
+
+    def create_policy_decision(
+        self,
+        *,
+        command: CommandRecord,
+        decision: PolicyDecision,
+    ) -> PolicyDecisionRecord:
+        decision_id = f"policy-{uuid.uuid4().hex}"
+        now = utc_now()
+        with self.database.transaction() as connection:
+            connection.execute(
+                """
+                INSERT INTO policy_decisions(
+                    id, run_id, command_id, effect, rule_id, policy_version, reason, risk,
+                    required_evidence_json, input_snapshot_json, input_hash, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    decision_id,
+                    command.run_id,
+                    command.id,
+                    decision.effect.value,
+                    decision.rule_id,
+                    decision.policy_version,
+                    decision.reason,
+                    decision.risk.value,
+                    canonical_json(list(decision.required_evidence)),
+                    canonical_json(decision.input_snapshot),
+                    decision.input_hash,
+                    now,
+                ),
+            )
+            self._append_event(
+                connection,
+                run_id=command.run_id,
+                command_id=command.id,
+                event_type="policy.evaluated",
+                payload={
+                    "policy_decision_id": decision_id,
+                    "effect": decision.effect.value,
+                    "rule_id": decision.rule_id,
+                    "policy_version": decision.policy_version,
+                    "risk": decision.risk.value,
+                    "input_hash": decision.input_hash,
+                },
+                created_at=now,
+            )
+        return self.require_policy_decision(decision_id)
+
+    def require_policy_decision(self, decision_id: str) -> PolicyDecisionRecord:
+        with self.database.read() as connection:
+            row = connection.execute("SELECT * FROM policy_decisions WHERE id = ?", (decision_id,)).fetchone()
+        if row is None:
+            raise KeyError(f"policy decision not found: {decision_id}")
+        return self._policy_decision_from_row(row)
+
+    def list_policy_decisions(self, command_id: str) -> list[PolicyDecisionRecord]:
+        with self.database.read() as connection:
+            rows = connection.execute(
+                "SELECT * FROM policy_decisions WHERE command_id = ? ORDER BY created_at, id",
+                (command_id,),
+            ).fetchall()
+        return [self._policy_decision_from_row(row) for row in rows]
+
+    def create_approval(
+        self,
+        *,
+        command_id: str,
+        policy_decision_id: str,
+        manifest: dict[str, Any],
+        manifest_hash: str,
+        expires_at: str,
+    ) -> ApprovalRecord:
+        command = self.require_command(command_id)
+        approval_id = f"approval-{uuid.uuid4().hex}"
+        now = utc_now()
+        with self.database.transaction() as connection:
+            connection.execute(
+                """
+                INSERT INTO approvals(
+                    id, run_id, command_id, policy_decision_id, manifest_json,
+                    manifest_hash, status, requested_at, expires_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    approval_id,
+                    command.run_id,
+                    command.id,
+                    policy_decision_id,
+                    canonical_json(manifest),
+                    manifest_hash,
+                    ApprovalStatus.PENDING.value,
+                    now,
+                    expires_at,
+                ),
+            )
+            self._append_event(
+                connection,
+                run_id=command.run_id,
+                command_id=command.id,
+                event_type="approval.requested",
+                payload={"approval_id": approval_id, "manifest_hash": manifest_hash, "expires_at": expires_at},
+                created_at=now,
+            )
+        return self.require_approval(approval_id)
+
+    def require_approval(self, approval_id: str) -> ApprovalRecord:
+        with self.database.read() as connection:
+            row = connection.execute("SELECT * FROM approvals WHERE id = ?", (approval_id,)).fetchone()
+        if row is None:
+            raise KeyError(f"approval not found: {approval_id}")
+        return self._approval_from_row(row)
+
+    def list_approvals(self, command_id: str) -> list[ApprovalRecord]:
+        with self.database.read() as connection:
+            rows = connection.execute(
+                "SELECT * FROM approvals WHERE command_id = ? ORDER BY requested_at, id", (command_id,)
+            ).fetchall()
+        return [self._approval_from_row(row) for row in rows]
+
+    def decide_approval(
+        self,
+        approval_id: str,
+        *,
+        status: ApprovalStatus,
+        approved_by: str,
+        note: str | None,
+    ) -> ApprovalRecord:
+        if status not in {ApprovalStatus.APPROVED, ApprovalStatus.DENIED}:
+            raise ValueError("approval decision must be approved or denied")
+        now = utc_now()
+        with self.database.transaction() as connection:
+            row = connection.execute("SELECT * FROM approvals WHERE id = ?", (approval_id,)).fetchone()
+            if row is None:
+                raise KeyError(f"approval not found: {approval_id}")
+            if ApprovalStatus(str(row["status"])) != ApprovalStatus.PENDING:
+                raise ValueError("only pending approvals can be decided")
+            if str(row["expires_at"]) <= now:
+                raise ValueError("approval request has expired")
+            connection.execute(
+                "UPDATE approvals SET status = ?, decided_at = ?, approved_by = ?, note = ? WHERE id = ?",
+                (status.value, now, approved_by, note, approval_id),
+            )
+            self._append_event(
+                connection,
+                run_id=str(row["run_id"]),
+                command_id=str(row["command_id"]),
+                event_type=f"approval.{status.value}",
+                payload={"approval_id": approval_id, "approved_by": approved_by, "note": note},
+                created_at=now,
+            )
+        return self.require_approval(approval_id)
+
+    def consume_approval(self, approval_id: str) -> ApprovalRecord:
+        now = utc_now()
+        with self.database.transaction() as connection:
+            row = connection.execute("SELECT * FROM approvals WHERE id = ?", (approval_id,)).fetchone()
+            if row is None:
+                raise KeyError(f"approval not found: {approval_id}")
+            if ApprovalStatus(str(row["status"])) != ApprovalStatus.APPROVED:
+                raise ValueError("only approved approvals can be consumed")
+            connection.execute(
+                "UPDATE approvals SET status = ?, consumed_at = ? WHERE id = ?",
+                (ApprovalStatus.CONSUMED.value, now, approval_id),
+            )
+            self._append_event(
+                connection,
+                run_id=str(row["run_id"]),
+                command_id=str(row["command_id"]),
+                event_type="approval.consumed",
+                payload={"approval_id": approval_id},
+                created_at=now,
+            )
+        return self.require_approval(approval_id)
+
+    def expire_approval(self, approval_id: str) -> ApprovalRecord:
+        now = utc_now()
+        with self.database.transaction() as connection:
+            row = connection.execute("SELECT * FROM approvals WHERE id = ?", (approval_id,)).fetchone()
+            if row is None:
+                raise KeyError(f"approval not found: {approval_id}")
+            current = ApprovalStatus(str(row["status"]))
+            if current not in {ApprovalStatus.PENDING, ApprovalStatus.APPROVED}:
+                return self._approval_from_row(row)
+            connection.execute(
+                "UPDATE approvals SET status = ? WHERE id = ?",
+                (ApprovalStatus.EXPIRED.value, approval_id),
+            )
+            self._append_event(
+                connection,
+                run_id=str(row["run_id"]),
+                command_id=str(row["command_id"]),
+                event_type="approval.expired",
+                payload={"approval_id": approval_id},
+                created_at=now,
+            )
+        return self.require_approval(approval_id)
+
+    def expire_pending_approvals(self, now: str) -> list[ApprovalRecord]:
+        with self.database.read() as connection:
+            ids = [
+                str(row[0])
+                for row in connection.execute(
+                    "SELECT id FROM approvals WHERE status IN (?, ?) AND expires_at <= ?",
+                    (ApprovalStatus.PENDING.value, ApprovalStatus.APPROVED.value, now),
+                ).fetchall()
+            ]
+        return [self.expire_approval(approval_id) for approval_id in ids]
 
     def create_artifact(
         self,
@@ -363,9 +602,48 @@ class JournalRepository:
             mission_id=str(row["mission_id"]),
             status=RunStatus(str(row["status"])),
             metadata=load_json(row["metadata_json"]) or {},
+            policy_snapshot=load_json(row["policy_snapshot_json"]),
+            policy_snapshot_hash=(
+                str(row["policy_snapshot_hash"]) if row["policy_snapshot_hash"] is not None else None
+            ),
             error=load_json(row["error_json"]),
             created_at=str(row["created_at"]),
             updated_at=str(row["updated_at"]),
+        )
+
+    @staticmethod
+    def _policy_decision_from_row(row: sqlite3.Row) -> PolicyDecisionRecord:
+        return PolicyDecisionRecord(
+            id=str(row["id"]),
+            run_id=str(row["run_id"]),
+            command_id=str(row["command_id"]),
+            effect=PolicyEffect(str(row["effect"])),
+            rule_id=str(row["rule_id"]),
+            policy_version=str(row["policy_version"]),
+            reason=str(row["reason"]),
+            risk=RiskLevel(str(row["risk"])),
+            required_evidence=tuple(load_json(row["required_evidence_json"]) or []),
+            input_snapshot=load_json(row["input_snapshot_json"]) or {},
+            input_hash=str(row["input_hash"]),
+            created_at=str(row["created_at"]),
+        )
+
+    @staticmethod
+    def _approval_from_row(row: sqlite3.Row) -> ApprovalRecord:
+        return ApprovalRecord(
+            id=str(row["id"]),
+            run_id=str(row["run_id"]),
+            command_id=str(row["command_id"]),
+            policy_decision_id=str(row["policy_decision_id"]),
+            manifest=load_json(row["manifest_json"]) or {},
+            manifest_hash=str(row["manifest_hash"]),
+            status=ApprovalStatus(str(row["status"])),
+            requested_at=str(row["requested_at"]),
+            expires_at=str(row["expires_at"]),
+            decided_at=str(row["decided_at"]) if row["decided_at"] is not None else None,
+            approved_by=str(row["approved_by"]) if row["approved_by"] is not None else None,
+            note=str(row["note"]) if row["note"] is not None else None,
+            consumed_at=str(row["consumed_at"]) if row["consumed_at"] is not None else None,
         )
 
     @staticmethod
@@ -384,18 +662,15 @@ class JournalRepository:
             expected_state=str(row["expected_state"]) if row["expected_state"] is not None else None,
             policy_decision=str(row["policy_decision"]) if row["policy_decision"] is not None else None,
             policy_reason=str(row["policy_reason"]) if row["policy_reason"] is not None else None,
+            policy_decision_id=(str(row["policy_decision_id"]) if row["policy_decision_id"] is not None else None),
             approval_id=str(row["approval_id"]) if row["approval_id"] is not None else None,
             started_at=str(row["started_at"]) if row["started_at"] is not None else None,
             finished_at=str(row["finished_at"]) if row["finished_at"] is not None else None,
             exit_code=int(row["exit_code"]) if row["exit_code"] is not None else None,
             result=load_json(row["result_json"]),
             error=load_json(row["error_json"]),
-            stdout_artifact_id=(
-                str(row["stdout_artifact_id"]) if row["stdout_artifact_id"] is not None else None
-            ),
-            stderr_artifact_id=(
-                str(row["stderr_artifact_id"]) if row["stderr_artifact_id"] is not None else None
-            ),
+            stdout_artifact_id=(str(row["stdout_artifact_id"]) if row["stdout_artifact_id"] is not None else None),
+            stderr_artifact_id=(str(row["stderr_artifact_id"]) if row["stderr_artifact_id"] is not None else None),
             created_at=str(row["created_at"]),
             updated_at=str(row["updated_at"]),
         )

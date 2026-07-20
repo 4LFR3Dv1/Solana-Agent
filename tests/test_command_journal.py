@@ -57,7 +57,9 @@ def test_journal_persists_planned_before_executor_is_called(tmp_path: Path) -> N
         ]
         return ExecutionResult(exit_code=0, stdout="built", stderr="")
 
-    outcome = journal.execute(command_spec(), FakeExecutor(callback=assert_running))
+    outcome = journal.execute(
+        command_spec(), FakeExecutor(callback=assert_running), validation=ValidationDecision.allow()
+    )
 
     assert outcome.command.status == CommandStatus.SUCCEEDED
 
@@ -121,7 +123,7 @@ def test_stdout_and_stderr_are_separate_hashed_artifacts(tmp_path: Path) -> None
     journal, repository, _ = make_journal(tmp_path)
     executor = FakeExecutor(ExecutionResult(exit_code=0, stdout="standard output", stderr="warning output"))
 
-    outcome = journal.execute(command_spec(), executor)
+    outcome = journal.execute(command_spec(), executor, validation=ValidationDecision.allow())
     artifacts = repository.list_artifacts(outcome.command.id)
     by_kind = {artifact.kind: artifact for artifact in artifacts}
 
@@ -137,7 +139,7 @@ def test_nonzero_exit_is_structured_failure(tmp_path: Path) -> None:
     journal, _, _ = make_journal(tmp_path)
     executor = FakeExecutor(ExecutionResult(exit_code=7, stdout="partial", stderr="compile failed"))
 
-    outcome = journal.execute(command_spec(), executor)
+    outcome = journal.execute(command_spec(), executor, validation=ValidationDecision.allow())
 
     assert outcome.command.status == CommandStatus.FAILED
     assert outcome.command.exit_code == 7
@@ -147,7 +149,11 @@ def test_nonzero_exit_is_structured_failure(tmp_path: Path) -> None:
 def test_executor_exception_is_persisted_as_terminal_failure(tmp_path: Path) -> None:
     journal, repository, _ = make_journal(tmp_path)
 
-    outcome = journal.execute(command_spec(), FakeExecutor(error=RuntimeError("adapter crashed")))
+    outcome = journal.execute(
+        command_spec(),
+        FakeExecutor(error=RuntimeError("adapter crashed")),
+        validation=ValidationDecision.allow(),
+    )
 
     assert outcome.command.status == CommandStatus.FAILED
     assert outcome.command.error == {
@@ -162,7 +168,7 @@ def test_timeout_preserves_partial_streams(tmp_path: Path) -> None:
     journal, repository, _ = make_journal(tmp_path)
     timeout = CommandTimedOut("build exceeded 60s", stdout="partial stdout", stderr="partial stderr")
 
-    outcome = journal.execute(command_spec(), FakeExecutor(error=timeout))
+    outcome = journal.execute(command_spec(), FakeExecutor(error=timeout), validation=ValidationDecision.allow())
     artifacts = {item.kind: item for item in repository.list_artifacts(outcome.command.id)}
 
     assert outcome.command.status == CommandStatus.TIMED_OUT
@@ -175,7 +181,7 @@ def test_interruption_is_distinct_from_failure(tmp_path: Path) -> None:
     journal, _, _ = make_journal(tmp_path)
     interruption = CommandInterrupted("stopped by operator", stdout="before stop")
 
-    outcome = journal.execute(command_spec(), FakeExecutor(error=interruption))
+    outcome = journal.execute(command_spec(), FakeExecutor(error=interruption), validation=ValidationDecision.allow())
 
     assert outcome.command.status == CommandStatus.INTERRUPTED
     assert outcome.command.error == {"code": "command_interrupted", "message": "stopped by operator"}
@@ -186,8 +192,8 @@ def test_duplicate_command_does_not_execute_twice(tmp_path: Path) -> None:
     executor = FakeExecutor(ExecutionResult(exit_code=0, stdout="ok"))
     spec = command_spec()
 
-    first = journal.execute(spec, executor)
-    second = journal.execute(spec, executor)
+    first = journal.execute(spec, executor, validation=ValidationDecision.allow())
+    second = journal.execute(spec, executor, validation=ValidationDecision.allow())
 
     assert first.duplicate is False
     assert second.duplicate is True
@@ -212,7 +218,7 @@ def test_approval_required_stops_before_execution(tmp_path: Path) -> None:
 def test_event_sequence_is_append_only_and_monotonic(tmp_path: Path) -> None:
     journal, repository, _ = make_journal(tmp_path)
 
-    journal.execute(command_spec(), FakeExecutor(ExecutionResult(exit_code=0)))
+    journal.execute(command_spec(), FakeExecutor(ExecutionResult(exit_code=0)), validation=ValidationDecision.allow())
     events = repository.list_events("run-1")
 
     assert [event.sequence for event in events] == list(range(1, len(events) + 1))
@@ -221,7 +227,11 @@ def test_event_sequence_is_append_only_and_monotonic(tmp_path: Path) -> None:
 
 def test_database_can_be_reopened_without_losing_history(tmp_path: Path) -> None:
     journal, _, database_path = make_journal(tmp_path)
-    outcome = journal.execute(command_spec(), FakeExecutor(ExecutionResult(exit_code=0, stdout="persisted")))
+    outcome = journal.execute(
+        command_spec(),
+        FakeExecutor(ExecutionResult(exit_code=0, stdout="persisted")),
+        validation=ValidationDecision.allow(),
+    )
 
     reopened_database = Database(database_path)
     reopened_database.initialize()

@@ -80,6 +80,51 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
         CREATE INDEX IF NOT EXISTS ix_artifacts_command ON artifacts(command_id, kind);
         """,
     ),
+    (
+        2,
+        """
+        ALTER TABLE runs ADD COLUMN policy_snapshot_json TEXT;
+        ALTER TABLE runs ADD COLUMN policy_snapshot_hash TEXT;
+        ALTER TABLE commands ADD COLUMN policy_decision_id TEXT;
+
+        CREATE TABLE policy_decisions (
+            id TEXT PRIMARY KEY,
+            run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+            command_id TEXT NOT NULL REFERENCES commands(id) ON DELETE CASCADE,
+            effect TEXT NOT NULL CHECK (effect IN ('allow', 'deny', 'require_approval')),
+            rule_id TEXT NOT NULL,
+            policy_version TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            risk TEXT NOT NULL CHECK (risk IN ('low', 'medium', 'high', 'critical')),
+            required_evidence_json TEXT NOT NULL DEFAULT '[]',
+            input_snapshot_json TEXT NOT NULL,
+            input_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE approvals (
+            id TEXT PRIMARY KEY,
+            run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+            command_id TEXT NOT NULL REFERENCES commands(id) ON DELETE CASCADE,
+            policy_decision_id TEXT NOT NULL REFERENCES policy_decisions(id) ON DELETE CASCADE,
+            manifest_json TEXT NOT NULL,
+            manifest_hash TEXT NOT NULL,
+            status TEXT NOT NULL CHECK (
+                status IN ('pending', 'approved', 'denied', 'expired', 'consumed')
+            ),
+            requested_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            decided_at TEXT,
+            approved_by TEXT,
+            note TEXT,
+            consumed_at TEXT
+        );
+
+        CREATE INDEX ix_policy_decisions_command ON policy_decisions(command_id, created_at);
+        CREATE INDEX ix_approvals_command ON approvals(command_id, requested_at);
+        CREATE INDEX ix_approvals_status_expiry ON approvals(status, expires_at);
+        """,
+    ),
 )
 
 

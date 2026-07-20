@@ -33,3 +33,16 @@ def test_command_contract_has_governed_lifecycle_states() -> None:
     assert "failed" in statuses
     assert "succeeded" in statuses
     assert "rejected" in statuses
+
+
+def test_approval_contract_is_bound_and_single_use() -> None:
+    payload = json.loads((CONTRACTS_ROOT / "approval.schema.json").read_text(encoding="utf-8"))
+
+    assert {"command_id", "policy_decision_id", "manifest_hash", "expires_at"} <= set(payload["required"])
+    assert "consumed" in payload["properties"]["status"]["enum"]
+
+
+def test_policy_decision_contract_captures_auditable_inputs() -> None:
+    payload = json.loads((CONTRACTS_ROOT / "policy-decision.schema.json").read_text(encoding="utf-8"))
+
+    assert {"rule_id", "policy_version", "risk", "input_snapshot", "input_hash"} <= set(payload["required"])

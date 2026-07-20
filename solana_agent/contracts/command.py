@@ -45,9 +45,7 @@ COMMAND_STATUS_TRANSITIONS: dict[CommandStatus, frozenset[CommandStatus]] = {
     CommandStatus.APPROVAL_REQUIRED: frozenset(
         {CommandStatus.AUTHORIZED, CommandStatus.REJECTED, CommandStatus.CANCELLED}
     ),
-    CommandStatus.AUTHORIZED: frozenset(
-        {CommandStatus.RUNNING, CommandStatus.FAILED, CommandStatus.CANCELLED}
-    ),
+    CommandStatus.AUTHORIZED: frozenset({CommandStatus.RUNNING, CommandStatus.FAILED, CommandStatus.CANCELLED}),
     CommandStatus.RUNNING: frozenset(
         {
             CommandStatus.SUCCEEDED,
@@ -96,6 +94,7 @@ class CommandRecord:
     expected_state: str | None
     policy_decision: str | None
     policy_reason: str | None
+    policy_decision_id: str | None
     approval_id: str | None
     started_at: str | None
     finished_at: str | None
