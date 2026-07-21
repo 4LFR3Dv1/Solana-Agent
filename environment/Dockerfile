@@ -26,7 +26,11 @@ RUN apt-get update -qq \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=python-runtime /usr/local /usr/local
-RUN python3 --version | grep -F "Python 3.11.9"
+COPY --from=python-runtime /usr/lib/*/libcrypto.so.1.1 /usr/lib/
+COPY --from=python-runtime /usr/lib/*/libssl.so.1.1 /usr/lib/
+RUN ldconfig \
+    && python3 --version | grep -F "Python 3.11.9" \
+    && python3 -c "import ssl; print(ssl.OPENSSL_VERSION)"
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup.sh \
     && sh /tmp/rustup.sh -y --no-modify-path --default-toolchain "${RUST_VERSION}" --profile minimal \
