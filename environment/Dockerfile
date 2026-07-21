@@ -22,15 +22,17 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN apt-get update -qq \
     && apt-get install -qq --no-install-recommends \
         build-essential ca-certificates curl git jq libssl-dev libudev-dev \
-        pkg-config xz-utils \
+        libbz2-1.0 libdb5.3 libexpat1 libgdbm-compat4 libgdbm6 liblzma5 \
+        libncursesw6 libreadline8 libsqlite3-0 libuuid1 pkg-config xz-utils zlib1g \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=python-runtime /usr/local /usr/local
 COPY --from=python-runtime /usr/lib/*/libcrypto.so.1.1 /usr/lib/
+COPY --from=python-runtime /usr/lib/*/libffi.so.7* /usr/lib/
 COPY --from=python-runtime /usr/lib/*/libssl.so.1.1 /usr/lib/
 RUN ldconfig \
     && python3 --version | grep -F "Python 3.11.9" \
-    && python3 -c "import ssl; print(ssl.OPENSSL_VERSION)"
+    && python3 -c "import bz2, ctypes, dbm.gnu, lzma, readline, sqlite3, ssl, uuid, zlib; print(ssl.OPENSSL_VERSION, sqlite3.sqlite_version)"
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup.sh \
     && sh /tmp/rustup.sh -y --no-modify-path --default-toolchain "${RUST_VERSION}" --profile minimal \

@@ -20,7 +20,8 @@ The final image remains Ubuntu-based. Python is copied from the digest-pinned
 `python:3.11.9-slim-bullseye` build stage; all other installers receive exact
 versions, and Node's archive is SHA-256 verified. Python's matching OpenSSL 1.1
 runtime libraries are copied from that same immutable stage and verified by an
-`import ssl` image-build check.
+image-build smoke test covering SSL, SQLite, ctypes, compression, readline,
+DBM, and UUID modules.
 
 ## Start the environment
 
