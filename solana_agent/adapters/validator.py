@@ -58,8 +58,12 @@ class LocalValidator:
         deadline = time.monotonic() + self.startup_timeout_seconds
         while time.monotonic() < deadline:
             if self.process.poll() is not None:
-                _, stderr = self.process.communicate(timeout=1)
-                raise LocalValidatorError(f"local validator exited during startup: {stderr.strip()}")
+                stdout, stderr = self.process.communicate(timeout=1)
+                return_code = self.process.returncode
+                diagnostics = self._startup_diagnostics(stdout, stderr)
+                raise LocalValidatorError(
+                    f"local validator exited during startup with code {return_code}: {diagnostics}"
+                )
             if self._healthy():
                 return self
             time.sleep(0.2)
@@ -77,6 +81,23 @@ class LocalValidator:
                 self.process.kill()
                 self.process.wait(timeout=5)
         self.process = None
+
+    def _startup_diagnostics(self, stdout: str, stderr: str) -> str:
+        details = []
+        if stdout.strip():
+            details.append(f"stdout={stdout.strip()}")
+        if stderr.strip():
+            details.append(f"stderr={stderr.strip()}")
+        log_candidates = sorted(
+            self.ledger_path.glob("validator*.log"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        if log_candidates:
+            log_tail = log_candidates[0].read_text(encoding="utf-8", errors="replace")[-20_000:].strip()
+            if log_tail:
+                details.append(f"validator_log={log_tail}")
+        return " | ".join(details) if details else "no process output or validator log was produced"
 
     def _healthy(self) -> bool:
         payload = json.dumps({"jsonrpc": "2.0", "id": "validator-health", "method": "getHealth", "params": []}).encode(

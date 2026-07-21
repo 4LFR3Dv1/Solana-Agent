@@ -57,7 +57,9 @@ VS Code-compatible clients can instead open `environment/devcontainer.json`.
 Every external process receives a structured argument list and runs with
 `shell=False`. The process runner restricts inherited environment variables,
 caps captured output, records the effective argv and cwd, and converts timeouts
-and interruptions into journal-compatible failures. The Policy Engine remains
+and interruptions into journal-compatible failures. Local-validator startup
+failures include the return code, captured streams, and a bounded validator log
+tail. The Policy Engine remains
 default-deny and requires a bound approval for both Solana CLI and Anchor
 deployments.
 
