@@ -24,7 +24,9 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
   "Topic :: Software Development :: Build Tools",
 ]
-dependencies = []
+dependencies = [
+  "PyYAML>=6.0.2,<7",
+]
 
 [project.optional-dependencies]
 dev = [
@@ -32,6 +34,7 @@ dev = [
   "pytest>=8,<9",
   "pytest-cov>=5,<8",
   "ruff>=0.8,<1",
+  "types-PyYAML>=6.0.12",
 ]
 
 [project.scripts]
@@ -42,6 +45,14 @@ include = ["solana_agent*"]
 
 [tool.setuptools.package-data]
 solana_agent = ["py.typed"]
+
+[tool.setuptools.data-files]
+"share/solana-agent/missions" = [
+  "missions/mission-pack.json",
+  "missions/create-counter.yaml",
+  "missions/deploy-existing-program.yaml",
+  "missions/verify-devnet-deploy.yaml",
+]
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-markers --basetemp=.pytest_tmp"

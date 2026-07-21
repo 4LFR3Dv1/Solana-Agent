@@ -1,0 +1,29 @@
+id: verify-devnet-deploy
+version: 1.0.0
+goal: Verify a devnet Program ID and assemble independently checkable evidence.
+inputs:
+  - name: program_id
+    description: Solana Program ID to verify.
+steps:
+  - id: inspect-environment
+    adapter: doctor
+    operation: inspect
+    acceptance:
+      - type: command_succeeded
+  - id: verify-program
+    adapter: solana
+    operation: verify_program
+    depends_on: [inspect-environment]
+    arguments:
+      program_id: "{{inputs.program_id}}"
+    acceptance:
+      - type: command_succeeded
+  - id: evidence
+    adapter: evidence
+    operation: assemble
+    depends_on: [verify-program]
+    arguments:
+      mission: verify-devnet-deploy
+      program_id: "{{inputs.program_id}}"
+    acceptance:
+      - type: command_succeeded

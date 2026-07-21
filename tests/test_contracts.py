@@ -46,3 +46,16 @@ def test_policy_decision_contract_captures_auditable_inputs() -> None:
     payload = json.loads((CONTRACTS_ROOT / "policy-decision.schema.json").read_text(encoding="utf-8"))
 
     assert {"rule_id", "policy_version", "risk", "input_snapshot", "input_hash"} <= set(payload["required"])
+
+
+def test_mission_definition_contract_is_declarative() -> None:
+    payload = json.loads((CONTRACTS_ROOT / "mission.schema.json").read_text(encoding="utf-8"))
+
+    assert payload["title"] == "MissionDefinition"
+    assert {"id", "version", "goal", "inputs", "steps"} <= set(payload["required"])
+
+
+def test_runtime_contract_binds_policy_and_tool_versions() -> None:
+    payload = json.loads((CONTRACTS_ROOT / "runtime-contract.schema.json").read_text(encoding="utf-8"))
+
+    assert {"policy_profile", "workspace_root", "tool_versions"} <= set(payload["required"])

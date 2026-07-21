@@ -1,5 +1,7 @@
 # Mission: Deploy Existing Program
 
+Canonical executable definition: `missions/deploy-existing-program.yaml`.
+
 ## Goal
 
 Validate an existing Anchor workspace, deploy the target program to devnet, and persist a deployment record with Explorer evidence.

@@ -1,0 +1,91 @@
+id: create-counter
+version: 1.0.0
+goal: Scaffold, test, deploy, invoke, and verify an Anchor counter on devnet.
+inputs:
+  - name: workspace
+    description: Absolute path for the new Anchor workspace.
+  - name: project_name
+    description: Anchor project and program name.
+  - name: airdrop_amount
+    required: false
+    default: "1"
+    description: Devnet SOL requested before deployment.
+steps:
+  - id: inspect-environment
+    adapter: doctor
+    operation: inspect
+    acceptance:
+      - type: command_succeeded
+  - id: create-workspace
+    adapter: filesystem
+    operation: create_workspace
+    depends_on: [inspect-environment]
+    arguments:
+      destination: "{{inputs.workspace}}"
+    preconditions:
+      - type: path_not_exists
+        parameters:
+          path: "{{inputs.workspace}}"
+    acceptance:
+      - type: command_succeeded
+  - id: scaffold
+    adapter: anchor
+    operation: scaffold
+    depends_on: [create-workspace]
+    cwd: "{{inputs.workspace}}"
+    arguments:
+      project_name: "{{inputs.project_name}}"
+    acceptance:
+      - type: command_succeeded
+  - id: build
+    adapter: anchor
+    operation: build
+    depends_on: [scaffold]
+    cwd: "{{inputs.workspace}}"
+    acceptance:
+      - type: command_succeeded
+  - id: test
+    adapter: anchor
+    operation: test
+    depends_on: [build]
+    cwd: "{{inputs.workspace}}"
+    acceptance:
+      - type: command_succeeded
+      - type: exit_code_equals
+        parameters:
+          value: 0
+  - id: airdrop
+    adapter: solana
+    operation: airdrop
+    depends_on: [test]
+    arguments:
+      amount: "{{inputs.airdrop_amount}}"
+    acceptance:
+      - type: command_succeeded
+  - id: deploy
+    adapter: solana
+    operation: deploy
+    depends_on: [airdrop]
+    cwd: "{{inputs.workspace}}"
+    arguments:
+      project_name: "{{inputs.project_name}}"
+    acceptance:
+      - type: command_succeeded
+  - id: invoke
+    adapter: solana
+    operation: invoke
+    depends_on: [deploy]
+    cwd: "{{inputs.workspace}}"
+    arguments:
+      flow: initialize_increment
+    acceptance:
+      - type: command_succeeded
+  - id: evidence
+    adapter: evidence
+    operation: assemble
+    depends_on: [invoke]
+    cwd: "{{inputs.workspace}}"
+    arguments:
+      mission: create-counter
+    acceptance:
+      - type: command_succeeded

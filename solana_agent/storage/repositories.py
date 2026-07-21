@@ -18,6 +18,11 @@ from solana_agent.contracts.authority import (
 )
 from solana_agent.contracts.command import CommandRecord, CommandStatus, require_command_transition
 from solana_agent.contracts.lifecycle import RunRecord, RunStatus
+from solana_agent.contracts.mission import (
+    MissionStepRecord,
+    MissionStepStatus,
+    require_mission_step_transition,
+)
 
 from .database import Database
 
@@ -137,6 +142,119 @@ class JournalRepository:
                 created_at=now,
             )
         return self.require_run(run_id)
+
+    def initialize_mission_steps(
+        self,
+        run_id: str,
+        steps: list[tuple[str, str]],
+    ) -> list[MissionStepRecord]:
+        self.require_run(run_id)
+        now = utc_now()
+        with self.database.transaction() as connection:
+            for step_id, definition_hash in steps:
+                connection.execute(
+                    """
+                    INSERT INTO mission_steps(
+                        run_id, step_id, definition_hash, status, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        run_id,
+                        step_id,
+                        definition_hash,
+                        MissionStepStatus.PENDING.value,
+                        now,
+                        now,
+                    ),
+                )
+                self._append_event(
+                    connection,
+                    run_id=run_id,
+                    command_id=None,
+                    event_type="mission_step.planned",
+                    payload={"step_id": step_id, "definition_hash": definition_hash},
+                    created_at=now,
+                )
+        return self.list_mission_steps(run_id)
+
+    def get_mission_step(self, run_id: str, step_id: str) -> MissionStepRecord | None:
+        with self.database.read() as connection:
+            row = connection.execute(
+                "SELECT * FROM mission_steps WHERE run_id = ? AND step_id = ?",
+                (run_id, step_id),
+            ).fetchone()
+        return self._mission_step_from_row(row) if row is not None else None
+
+    def require_mission_step(self, run_id: str, step_id: str) -> MissionStepRecord:
+        step = self.get_mission_step(run_id, step_id)
+        if step is None:
+            raise KeyError(f"mission step not found: {run_id}/{step_id}")
+        return step
+
+    def list_mission_steps(self, run_id: str) -> list[MissionStepRecord]:
+        with self.database.read() as connection:
+            rows = connection.execute(
+                "SELECT * FROM mission_steps WHERE run_id = ? ORDER BY created_at, step_id",
+                (run_id,),
+            ).fetchall()
+        return [self._mission_step_from_row(row) for row in rows]
+
+    def set_mission_step_status(
+        self,
+        run_id: str,
+        step_id: str,
+        status: MissionStepStatus,
+        *,
+        command_id: str | None = None,
+        result: dict[str, Any] | None = None,
+        error: dict[str, Any] | None = None,
+        increment_attempt: bool = False,
+    ) -> MissionStepRecord:
+        now = utc_now()
+        with self.database.transaction() as connection:
+            row = connection.execute(
+                "SELECT * FROM mission_steps WHERE run_id = ? AND step_id = ?",
+                (run_id, step_id),
+            ).fetchone()
+            if row is None:
+                raise KeyError(f"mission step not found: {run_id}/{step_id}")
+            current = MissionStepStatus(str(row["status"]))
+            require_mission_step_transition(current, status)
+            attempt = int(row["attempt"]) + (1 if increment_attempt else 0)
+            connection.execute(
+                """
+                UPDATE mission_steps
+                SET status = ?, attempt = ?, command_id = COALESCE(?, command_id),
+                    result_json = ?, error_json = ?, updated_at = ?
+                WHERE run_id = ? AND step_id = ?
+                """,
+                (
+                    status.value,
+                    attempt,
+                    command_id,
+                    canonical_json(result) if result is not None else None,
+                    canonical_json(error) if error is not None else None,
+                    now,
+                    run_id,
+                    step_id,
+                ),
+            )
+            payload: dict[str, Any] = {"step_id": step_id, "attempt": attempt}
+            if command_id is not None:
+                payload["command_id"] = command_id
+            if result is not None:
+                payload["result"] = result
+            if error is not None:
+                payload["error"] = error
+            self._append_event(
+                connection,
+                run_id=run_id,
+                command_id=command_id or (str(row["command_id"]) if row["command_id"] else None),
+                event_type=f"mission_step.{status.value}",
+                payload=payload,
+                created_at=now,
+            )
+        return self.require_mission_step(run_id, step_id)
 
     def insert_planned_command(
         self,
@@ -698,4 +816,19 @@ class JournalRepository:
             content_hash=str(row["content_hash"]),
             size_bytes=int(row["size_bytes"]),
             created_at=str(row["created_at"]),
+        )
+
+    @staticmethod
+    def _mission_step_from_row(row: sqlite3.Row) -> MissionStepRecord:
+        return MissionStepRecord(
+            run_id=str(row["run_id"]),
+            step_id=str(row["step_id"]),
+            definition_hash=str(row["definition_hash"]),
+            status=MissionStepStatus(str(row["status"])),
+            attempt=int(row["attempt"]),
+            command_id=str(row["command_id"]) if row["command_id"] is not None else None,
+            result=load_json(row["result_json"]),
+            error=load_json(row["error_json"]),
+            created_at=str(row["created_at"]),
+            updated_at=str(row["updated_at"]),
         )

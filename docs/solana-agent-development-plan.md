@@ -724,6 +724,9 @@ Critérios de aceite:
 
 ### Fase 3 — Motor declarativo de missões
 
+Status: implementada no core independente da toolchain pela PR3. Os adapters
+reais que executarão essas operações são o escopo da Fase 4.
+
 Objetivo: remover `create-counter` do fluxo hardcoded.
 
 Entregáveis:
