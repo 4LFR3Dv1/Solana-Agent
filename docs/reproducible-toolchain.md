@@ -47,8 +47,10 @@ Agave 4.1.2 requires Linux `io_uring` during validator startup and aborts when
 Docker's default seccomp profile blocks those syscalls. The compose service and
 validator integration step therefore opt out of Docker's seccomp profile
 explicitly. To reduce that expanded syscall surface, the container drops every
-Linux capability and enables `no-new-privileges`. This exception applies to the
-pinned local development image, not to arbitrary mission subprocesses.
+Linux capability, enables `no-new-privileges`, and runs with an unprivileged
+UID/GID. On Linux, override `SOLANA_AGENT_UID` and `SOLANA_AGENT_GID` if your
+host user is not `1000:1000`. This exception applies to the pinned local
+development image, not to arbitrary mission subprocesses.
 
 ## Adapter boundary
 

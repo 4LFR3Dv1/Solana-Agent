@@ -3,11 +3,13 @@ services:
     build:
       context: ..
       dockerfile: environment/Dockerfile
+    user: "${SOLANA_AGENT_UID:-1000}:${SOLANA_AGENT_GID:-1000}"
     working_dir: /workspace
+    environment:
+      HOME: /tmp/solana-agent-home
+      CARGO_HOME: /tmp/solana-agent-home/.cargo
     volumes:
       - ..:/workspace
-      - cargo-cache:/opt/cargo/registry
-      - target-cache:/workspace/target
     ports:
       - "8899:8899"
       - "8900:8900"
@@ -16,8 +18,4 @@ services:
       - seccomp:unconfined
     cap_drop:
       - ALL
-    command: ["sleep", "infinity"]
-
-volumes:
-  cargo-cache:
-  target-cache:
+    command: ["bash", "-lc", "mkdir -p \"$$HOME\" && sleep infinity"]
