@@ -13,6 +13,9 @@ services:
       - "8900:8900"
     security_opt:
       - no-new-privileges:true
+      - seccomp:unconfined
+    cap_drop:
+      - ALL
     command: ["sleep", "infinity"]
 
 volumes:

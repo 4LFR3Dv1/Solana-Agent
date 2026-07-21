@@ -34,5 +34,6 @@ jobs:
       - name: Exercise local validator adapter
         run: >-
           docker run --rm --volume "${{ github.workspace }}:/workspace"
+          --cap-drop ALL --security-opt no-new-privileges --security-opt seccomp=unconfined
           --env SOLANA_AGENT_RUN_INTEGRATION=1 solana-agent-toolchain bash -lc
           "python3 -m pip install -e '.[dev]' && pytest tests/test_local_validator_integration.py"
