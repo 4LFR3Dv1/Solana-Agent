@@ -16,6 +16,7 @@ steps:
     depends_on: [inspect-environment]
     arguments:
       program_id: "{{inputs.program_id}}"
+      cluster: "{{runtime.cluster}}"
     acceptance:
       - type: command_succeeded
   - id: evidence

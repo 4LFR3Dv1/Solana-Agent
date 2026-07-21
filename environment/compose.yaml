@@ -1,0 +1,20 @@
+services:
+  solana-agent:
+    build:
+      context: ..
+      dockerfile: environment/Dockerfile
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+      - cargo-cache:/opt/cargo/registry
+      - target-cache:/workspace/target
+    ports:
+      - "8899:8899"
+      - "8900:8900"
+    security_opt:
+      - no-new-privileges:true
+    command: ["sleep", "infinity"]
+
+volumes:
+  cargo-cache:
+  target-cache:

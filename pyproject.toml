@@ -47,6 +47,7 @@ include = ["solana_agent*"]
 solana_agent = ["py.typed"]
 
 [tool.setuptools.data-files]
+"share/solana-agent" = ["toolchain.lock.json"]
 "share/solana-agent/missions" = [
   "missions/mission-pack.json",
   "missions/create-counter.yaml",
@@ -58,6 +59,9 @@ solana_agent = ["py.typed"]
 addopts = "-ra --strict-markers --basetemp=.pytest_tmp"
 cache_dir = ".pytest_tmp/cache"
 testpaths = ["tests"]
+markers = [
+  "integration: tests that require the pinned Solana/Anchor toolchain",
+]
 
 [tool.coverage.run]
 branch = true

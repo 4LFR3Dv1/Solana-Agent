@@ -1,0 +1,15 @@
+{
+  "name": "Solana Agent Toolchain",
+  "dockerComposeFile": "compose.yaml",
+  "service": "solana-agent",
+  "workspaceFolder": "/workspace",
+  "shutdownAction": "stopCompose",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "ms-python.python"
+      ]
+    }
+  }
+}

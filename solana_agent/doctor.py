@@ -3,8 +3,12 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
+
+from .toolchain import ToolchainLock, probe_toolchain
 
 
 @dataclass
@@ -49,7 +53,7 @@ def _run_text(args: list[str]) -> tuple[int, str, str]:
 
 def host_doctor() -> dict[str, Any]:
     commands = []
-    for name in ["solana", "anchor", "rustc", "node", "yarn"]:
+    for name in ["solana", "anchor", "rustc", "node", "pnpm"]:
         available, version = _run_version(name)
         commands.append(
             HostCommandStatus(
@@ -84,6 +88,28 @@ def host_doctor() -> dict[str, Any]:
     if not any(command["name"] == "node" and command["available"] for command in commands):
         missing_runtime.append("node")
 
+    source_lock = Path(__file__).resolve().parents[1] / "toolchain.lock.json"
+    installed_lock = Path(sys.prefix) / "share" / "solana-agent" / "toolchain.lock.json"
+    lock_path = source_lock if source_lock.is_file() else installed_lock
+    toolchain: dict[str, Any]
+    if lock_path.is_file():
+        lock = ToolchainLock.load(lock_path)
+        probes = probe_toolchain(lock)
+        toolchain = {
+            "lock_path": str(lock_path),
+            "compatible": all(probe.compatible for probe in probes),
+            "environment": lock.environment,
+            "tools": [probe.to_dict() for probe in probes],
+        }
+    else:
+        toolchain = {
+            "lock_path": str(lock_path),
+            "compatible": False,
+            "environment": {},
+            "tools": [],
+            "error": "toolchain.lock.json was not found",
+        }
+
     return {
         "ok": True,
         "host_os": os.name,
@@ -92,6 +118,7 @@ def host_doctor() -> dict[str, Any]:
         "ready_for_runtime": not missing_runtime,
         "missing_runtime": missing_runtime,
         "next_steps": _next_steps(os.name, wsl, commands),
+        "toolchain": toolchain,
     }
 
 
@@ -100,7 +127,10 @@ def _next_steps(host_os: str, wsl: dict[str, Any], commands: list[dict[str, Any]
     if host_os == "nt" and not wsl["installed"]:
         steps.append("Install Ubuntu in WSL: wsl.exe --install Ubuntu")
     if host_os == "nt" and wsl["installed"]:
-        steps.append("Open Ubuntu and install Solana CLI, Rust, Anchor, Node, and Yarn inside WSL")
+        steps.append(
+            "Open Ubuntu and install Solana CLI, Rust, Anchor, Node, and pnpm "
+            "at the versions pinned by toolchain.lock.json"
+        )
     if not any(command["name"] == "node" and command["available"] for command in commands):
         steps.append("Install Node.js on the host if you want local helper tooling outside WSL")
     return steps

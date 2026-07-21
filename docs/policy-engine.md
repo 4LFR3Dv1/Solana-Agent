@@ -28,7 +28,9 @@ what the operator decided, and what the runtime executed.
 
 ## Profiles
 
-The built-in policy version is `solana-agent-policy/1.1.0`.
+The built-in policy version is `solana-agent-policy/1.2.0`. PR4 adds explicit
+rules for pnpm operations, allowlisted JSON-RPC reads, and approval-gated Anchor
+deployments.
 
 | Profile | Intended authority |
 | --- | --- |

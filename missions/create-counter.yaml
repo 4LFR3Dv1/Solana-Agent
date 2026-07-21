@@ -16,31 +16,30 @@ steps:
     operation: inspect
     acceptance:
       - type: command_succeeded
-  - id: create-workspace
-    adapter: filesystem
-    operation: create_workspace
+  - id: scaffold
+    adapter: anchor
+    operation: scaffold
     depends_on: [inspect-environment]
     arguments:
-      destination: "{{inputs.workspace}}"
+      workspace: "{{inputs.workspace}}"
+      project_name: "{{inputs.project_name}}"
     preconditions:
       - type: path_not_exists
         parameters:
           path: "{{inputs.workspace}}"
     acceptance:
       - type: command_succeeded
-  - id: scaffold
-    adapter: anchor
-    operation: scaffold
-    depends_on: [create-workspace]
+  - id: install-dependencies
+    adapter: package
+    operation: install
+    depends_on: [scaffold]
     cwd: "{{inputs.workspace}}"
-    arguments:
-      project_name: "{{inputs.project_name}}"
     acceptance:
       - type: command_succeeded
   - id: build
     adapter: anchor
     operation: build
-    depends_on: [scaffold]
+    depends_on: [install-dependencies]
     cwd: "{{inputs.workspace}}"
     acceptance:
       - type: command_succeeded
@@ -60,24 +59,26 @@ steps:
     depends_on: [test]
     arguments:
       amount: "{{inputs.airdrop_amount}}"
+      cluster: "{{runtime.cluster}}"
+      wallet: "{{runtime.wallet}}"
     acceptance:
       - type: command_succeeded
   - id: deploy
-    adapter: solana
+    adapter: anchor
     operation: deploy
     depends_on: [airdrop]
     cwd: "{{inputs.workspace}}"
     arguments:
-      project_name: "{{inputs.project_name}}"
+      cluster: "{{runtime.cluster}}"
     acceptance:
       - type: command_succeeded
   - id: invoke
-    adapter: solana
-    operation: invoke
+    adapter: package
+    operation: run
     depends_on: [deploy]
     cwd: "{{inputs.workspace}}"
     arguments:
-      flow: initialize_increment
+      script: interact:devnet
     acceptance:
       - type: command_succeeded
   - id: evidence

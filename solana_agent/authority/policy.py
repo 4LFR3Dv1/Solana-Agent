@@ -46,9 +46,12 @@ class PolicyRule:
         )
 
 
-POLICY_VERSION = "solana-agent-policy/1.1.0"
+POLICY_VERSION = "solana-agent-policy/1.2.0"
 SOLANA_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 MATERIAL_SOLANA_OPERATIONS = frozenset({"airdrop", "sign", "deploy", "invoke"})
+MATERIAL_ADAPTER_OPERATIONS = frozenset(
+    {("solana", operation) for operation in MATERIAL_SOLANA_OPERATIONS} | {("anchor", "deploy")}
+)
 SAFE_CLUSTERS = frozenset(
     {
         "devnet",
@@ -130,6 +133,36 @@ DEFAULT_RULES: tuple[PolicyRule, ...] = (
         ("test.result",),
     ),
     PolicyRule(
+        "package-install",
+        (PolicyProfile.LOCAL_SAFE, PolicyProfile.DEVNET_SAFE),
+        "package",
+        "install",
+        PolicyEffect.ALLOW,
+        RiskLevel.MEDIUM,
+        "locked package installation is allowed inside the governed workspace",
+        ("dependencies.installed",),
+    ),
+    PolicyRule(
+        "package-run",
+        (PolicyProfile.LOCAL_SAFE, PolicyProfile.DEVNET_SAFE),
+        "package",
+        "run",
+        PolicyEffect.REQUIRE_APPROVAL,
+        RiskLevel.HIGH,
+        "declared package scripts can execute project code and require operator approval",
+        ("script.result",),
+    ),
+    PolicyRule(
+        "rpc-read",
+        tuple(PolicyProfile),
+        "solana_rpc",
+        "*",
+        PolicyEffect.ALLOW,
+        RiskLevel.LOW,
+        "allowlisted Solana JSON-RPC reads are non-material",
+        ("rpc.response",),
+    ),
+    PolicyRule(
         "local-validator",
         (PolicyProfile.LOCAL_SAFE, PolicyProfile.DEVNET_SAFE),
         "solana",
@@ -197,6 +230,26 @@ DEFAULT_RULES: tuple[PolicyRule, ...] = (
         PolicyEffect.REQUIRE_APPROVAL,
         RiskLevel.HIGH,
         "devnet deployment requires explicit approval",
+        ("program.executable", "transaction.signature"),
+    ),
+    PolicyRule(
+        "anchor-devnet-deploy",
+        (PolicyProfile.DEVNET_SAFE,),
+        "anchor",
+        "deploy",
+        PolicyEffect.REQUIRE_APPROVAL,
+        RiskLevel.HIGH,
+        "Anchor devnet deployment requires explicit approval",
+        ("program.executable", "transaction.signature"),
+    ),
+    PolicyRule(
+        "anchor-local-deploy",
+        (PolicyProfile.LOCAL_SAFE,),
+        "anchor",
+        "deploy",
+        PolicyEffect.REQUIRE_APPROVAL,
+        RiskLevel.HIGH,
+        "Anchor local deployment remains an auditable material action",
         ("program.executable", "transaction.signature"),
     ),
     PolicyRule(
@@ -322,7 +375,7 @@ class PolicyEngine:
                 RiskLevel.CRITICAL,
                 snapshot,
             )
-        is_material_solana = command.adapter == "solana" and command.operation in MATERIAL_SOLANA_OPERATIONS
+        is_material_solana = (command.adapter, command.operation) in MATERIAL_ADAPTER_OPERATIONS
         if is_material_solana and not context.cluster:
             return self._deny(
                 "cluster-unspecified",
@@ -355,7 +408,7 @@ class PolicyEngine:
             return self._deny(
                 "path-escape", "command cwd escapes the configured workspace", RiskLevel.CRITICAL, snapshot
             )
-        for key in ("path", "destination", "workspace"):
+        for key in ("path", "destination", "workspace", "program_path"):
             value = command.arguments.get(key)
             if isinstance(value, str):
                 target = Path(value)
