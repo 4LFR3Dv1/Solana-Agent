@@ -2,6 +2,14 @@ name: Pinned toolchain integration
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/toolchain-integration.yml"
+      - "environment/**"
+      - "solana_agent/adapters/**"
+      - "tests/fixtures/anchor-workspace/**"
+      - "tests/test_local_validator_integration.py"
+      - "toolchain.lock.json"
 
 permissions:
   contents: read
