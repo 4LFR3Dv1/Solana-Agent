@@ -1,10 +1,13 @@
 # Architecture
 
-Solana Agent is organized into three layers:
+Solana Agent is evolving toward six small runtime layers:
 
-1. Agent contract
-2. Execution adapters
-3. Evidence and state contracts
+1. executable contracts
+2. mission engine
+3. command authority
+4. transactional storage
+5. execution adapters
+6. evidence verification
 
 ## Agent Contract
 
@@ -17,6 +20,32 @@ Defined by:
 
 These files define the agent identity, allowed behavior, supported mission flows, and success criteria.
 
+Coding agents propose work. They are not the authority that validates or
+executes governed commands.
+
+## Executable Contracts
+
+Defined by:
+
+- `contracts/`
+- `solana_agent/contracts/`
+
+JSON schemas define portable representations. Python contracts define strict
+runtime states and transitions.
+
+## Command Authority and Journal
+
+Defined by:
+
+- `solana_agent/execution/`
+- `solana_agent/storage/`
+
+Command intent is persisted in SQLite before validation or execution. Commands,
+events, and artifacts use separate ledgers. Rejected, failed, interrupted, and
+timed-out operations remain queryable.
+
+See `docs/command-journal.md` for the current contract.
+
 ## Execution Adapters
 
 Defined by:
@@ -25,6 +54,10 @@ Defined by:
 - `solana_agent/`
 
 The shell adapters are small and deterministic. The Python runtime orchestrates missions, approvals, persistence, template rendering, and command execution.
+
+The existing Solana runner is still legacy and is not connected to the new
+governed journal yet. Future adapters must use structured arguments and
+`shell=False`.
 
 ## Evidence and State Contracts
 
@@ -35,3 +68,6 @@ Defined by:
 - `.solana-agent/`
 
 The repository stores schemas and examples. Live mission state stays local in `.solana-agent/`.
+
+SQLite at `.solana-agent/runtime.db` is the new canonical local ledger. JSON is
+used for portable contracts, exports, and evidence manifests.
