@@ -60,7 +60,9 @@ def test_counter_template_builds_and_passes_anchor_test(tmp_path: Path, monkeypa
     built = AnchorAdapter(default_cluster="localnet").execute(request("anchor", "build", workspace, timeout=900))
     assert built.exit_code == 0, built.stderr
 
-    with LocalValidator(tmp_path / "ledger"):
+    # Compile and execute against the same feature gates currently active on
+    # devnet, including the sBPF version emitted by the pinned platform tools.
+    with LocalValidator(tmp_path / "ledger", clone_feature_set="devnet"):
         airdrop = subprocess.run(
             ["solana", "airdrop", "10", "--keypair", str(wallet), "--url", "http://127.0.0.1:8899"],
             check=False,
