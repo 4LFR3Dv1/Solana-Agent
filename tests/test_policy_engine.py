@@ -120,6 +120,19 @@ def test_allowlisted_rpc_read_is_available_in_read_only_profile(tmp_path: Path) 
     assert repository.list_policy_decisions(outcome.command.id)[0].rule_id == "rpc-read"
 
 
+def test_wallet_balance_requirement_is_an_allowlisted_read(tmp_path: Path) -> None:
+    journal, repository, _, _ = governed_runtime(tmp_path, profile=PolicyProfile.READ_ONLY)
+
+    outcome = journal.execute(
+        spec(tmp_path, adapter="solana", operation="require_balance", minimum_lamports=2_000_000_000),
+        FakeExecutor(ExecutionResult(exit_code=0, stdout="5000000000 lamports")),
+        policy_context=context(tmp_path, max_lamports=None),
+    )
+
+    assert outcome.command.status == CommandStatus.SUCCEEDED
+    assert repository.list_policy_decisions(outcome.command.id)[0].rule_id == "require-wallet-balance"
+
+
 def test_read_only_profile_blocks_local_build(tmp_path: Path) -> None:
     journal, repository, _, _ = governed_runtime(tmp_path, profile=PolicyProfile.READ_ONLY)
 

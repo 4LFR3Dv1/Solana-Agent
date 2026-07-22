@@ -46,7 +46,7 @@ class PolicyRule:
         )
 
 
-POLICY_VERSION = "solana-agent-policy/1.3.0"
+POLICY_VERSION = "solana-agent-policy/1.4.0"
 SOLANA_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 MATERIAL_SOLANA_OPERATIONS = frozenset({"airdrop", "sign", "deploy", "invoke"})
 MATERIAL_ADAPTER_OPERATIONS = frozenset(
@@ -201,6 +201,16 @@ DEFAULT_RULES: tuple[PolicyRule, ...] = (
         RiskLevel.LOW,
         "program verification is a read-only RPC operation",
         ("program.executable",),
+    ),
+    PolicyRule(
+        "require-wallet-balance",
+        tuple(PolicyProfile),
+        "solana",
+        "require_balance",
+        PolicyEffect.ALLOW,
+        RiskLevel.LOW,
+        "wallet balance verification is a read-only RPC operation",
+        ("balance.observed",),
     ),
     PolicyRule(
         "assemble-evidence",

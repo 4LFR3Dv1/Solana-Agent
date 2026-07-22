@@ -94,6 +94,13 @@ for attempt in $(seq 1 16); do
   if [[ "${status}" == "completed" ]]; then
     break
   fi
+  if [[ "${status}" == "failed" ]]; then
+    "${python_bin}" -m solana_agent --repo-root "${repo_root}" commands list "${run_id}" \
+      --contract "${contract}" --state-root "${state_root}" --failed-only --include-output \
+      | tee "${output_root}/failed-commands.json" >&2
+    echo "mission reached a terminal failure (last exit ${exit_code})" >&2
+    exit 1
+  fi
   approvals="$("${python_bin}" -m solana_agent --repo-root "${repo_root}" approvals list "${run_id}" \
     --contract "${contract}" --state-root "${state_root}")"
   approval_id="$(printf '%s' "${approvals}" | jq -r '[.approvals[] | select(.status == "pending")] | last | .id // empty')"
