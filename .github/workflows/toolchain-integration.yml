@@ -71,6 +71,9 @@ jobs:
           /tmp/counter-venv/bin/pip install -e '/tmp/solana-agent-source[dev]' solders==0.28.0 &&
           /tmp/counter-venv/bin/pytest --basetemp=/tmp/counter-pytest
           -o cache_dir=/tmp/counter-cache /workspace/tests/test_counter_toolchain_integration.py"
+      - name: Prepare isolated live proof output
+        if: github.event_name == 'pull_request' && github.head_ref == 'agent/devnet-e2e'
+        run: install -d -m 0777 .live-proof
       - name: Run governed live devnet proof
         if: github.event_name == 'pull_request' && github.head_ref == 'agent/devnet-e2e'
         run: >-
