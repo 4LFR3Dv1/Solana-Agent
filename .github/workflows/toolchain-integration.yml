@@ -23,8 +23,19 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
       - name: Build pinned development image
-        run: docker build --file environment/Dockerfile --tag solana-agent-toolchain .
+        uses: docker/build-push-action@v6
+        timeout-minutes: 25
+        with:
+          context: .
+          file: environment/Dockerfile
+          load: true
+          tags: solana-agent-toolchain:latest
+          cache-from: type=gha,scope=solana-agent-toolchain
+          cache-to: type=gha,mode=max,scope=solana-agent-toolchain
+          provenance: false
       - name: Verify every pinned tool
         run: >-
           docker run --rm solana-agent-toolchain
