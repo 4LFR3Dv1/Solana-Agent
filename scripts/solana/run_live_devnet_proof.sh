@@ -10,7 +10,7 @@ contract="${runtime_root}/runtime.devnet.json"
 wallet_path="${HOME}/.config/solana/id.json"
 transcript="${output_root}/execution-transcript.txt"
 python_bin="${PYTHON_BIN:-python3}"
-export PATH="/root/.local/share/solana/install/active_release/bin:/opt/cargo/bin:/opt/node/bin:/opt/pnpm:${PATH}"
+export PATH="/root/.local/share/solana/install/active_release/bin:/opt/cargo/bin:/opt/pnpm:/opt/node/bin:${PATH}"
 
 rm -rf "${runtime_root}"
 mkdir -p "$(dirname "${wallet_path}")" "${runtime_root}/workspaces" "${output_root}"
