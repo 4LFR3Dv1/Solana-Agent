@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -19,7 +20,7 @@ def request(adapter: str, operation: str, cwd: Path, timeout: int = 300, **argum
 def test_counter_template_builds_and_passes_anchor_test(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     if os.environ.get("SOLANA_AGENT_RUN_INTEGRATION") != "1":
         pytest.skip("set SOLANA_AGENT_RUN_INTEGRATION=1 inside the pinned toolchain container")
-    required = ("anchor", "pnpm", "solana", "solana-keygen", "solana-test-validator")
+    required = ("anchor", "pnpm", "solana", "solana-test-validator")
     if any(shutil.which(executable) is None for executable in required):
         pytest.skip("pinned Solana/Anchor toolchain is not installed")
 
@@ -27,7 +28,7 @@ def test_counter_template_builds_and_passes_anchor_test(tmp_path: Path, monkeypa
     templates = Path(__file__).resolve().parents[1] / "templates" / "anchor-counter" / "files"
     wallet = tmp_path / "operator.json"
     subprocess.run(
-        ["solana-keygen", "new", "--no-bip39-passphrase", "--silent", "--force", "--outfile", str(wallet)],
+        [sys.executable, str(Path(__file__).resolve().parents[1] / "scripts/solana/create_ephemeral_keypair.py"), str(wallet)],
         check=True,
         text=True,
         capture_output=True,

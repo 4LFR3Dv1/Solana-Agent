@@ -12,6 +12,13 @@ transcript="${output_root}/execution-transcript.txt"
 python_bin="${PYTHON_BIN:-python3}"
 export PATH="/root/.local/share/solana/install/active_release/bin:/opt/cargo/bin:/opt/node/bin:/opt/pnpm:${PATH}"
 
+restore_output_owner() {
+  if [[ "$(id -u)" == "0" && -n "${HOST_UID:-}" && -n "${HOST_GID:-}" && -d "${output_root}" ]]; then
+    chown -R "${HOST_UID}:${HOST_GID}" "${output_root}"
+  fi
+}
+trap restore_output_owner EXIT
+
 rm -rf "${runtime_root}" "${output_root}"
 mkdir -p "$(dirname "${wallet_path}")" "${runtime_root}/workspaces" "${output_root}"
 command -v solana >/dev/null
