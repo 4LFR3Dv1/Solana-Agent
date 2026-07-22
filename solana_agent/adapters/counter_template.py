@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +41,10 @@ class CounterTemplateAdapter:
         if match is None:
             raise ValueError("generated Anchor source does not contain a valid declare_id")
         program_id = match.group(1)
+        generated_rust_tests = workspace / "programs" / program_slug / "tests"
+        generated_rust_tests_removed = generated_rust_tests.is_dir()
+        if generated_rust_tests_removed:
+            shutil.rmtree(generated_rust_tests)
         replacements = {
             "__PROGRAM_SLUG__": program_slug,
             "__PROGRAM_SNAKE__": program_snake,
@@ -81,6 +86,7 @@ class CounterTemplateAdapter:
                 "files": written,
                 "file_count": len(written),
                 "stale_lock_removed": lock_removed,
+                "generated_rust_tests_removed": generated_rust_tests_removed,
             },
         )
 

@@ -60,6 +60,9 @@ def test_counter_template_materializes_program_with_generated_id(tmp_path: Path)
     source.parent.mkdir(parents=True)
     source.write_text(f'use anchor_lang::prelude::*;\ndeclare_id!("{PROGRAM_ID}");\n', encoding="utf-8")
     (workspace / "Anchor.toml").write_text("[provider]\ncluster = 'Localnet'\n", encoding="utf-8")
+    generated_test = workspace / "programs" / "counter-demo" / "tests" / "test_initialize.rs"
+    generated_test.parent.mkdir(parents=True)
+    generated_test.write_text("stale scaffold test\n", encoding="utf-8")
     template_root = Path(__file__).resolve().parents[1] / "templates" / "anchor-counter" / "files"
     adapter = CounterTemplateAdapter(tmp_path, template_root)
 
@@ -78,6 +81,8 @@ def test_counter_template_materializes_program_with_generated_id(tmp_path: Path)
     assert result.exit_code == 0
     assert result.metadata["program_id"] == PROGRAM_ID
     assert result.metadata["file_count"] == 5
+    assert result.metadata["generated_rust_tests_removed"] is True
+    assert not generated_test.exists()
     assert f'declare_id!("{PROGRAM_ID}")' in source.read_text(encoding="utf-8")
     assert "PROGRAM_ID=${program.programId.toBase58()}" in (workspace / "scripts" / "interact.ts").read_text(
         encoding="utf-8"
