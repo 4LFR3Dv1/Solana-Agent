@@ -97,5 +97,6 @@ jobs:
         with:
           name: solana-agent-live-devnet-proof
           path: .live-proof/
+          include-hidden-files: true
           if-no-files-found: warn
           retention-days: 30

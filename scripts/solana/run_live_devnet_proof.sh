@@ -49,6 +49,15 @@ cd "${repo_root}"
   echo "WALLET=${wallet}"
 } | tee "${transcript}"
 
+"${python_bin}" -m solana_agent --repo-root "${repo_root}" doctor >"${output_root}/doctor.json"
+cat "${output_root}/doctor.json" | tee -a "${transcript}"
+if [[ "$(jq -r '.toolchain.compatible' "${output_root}/doctor.json")" != "true" ]]; then
+  echo "Pinned toolchain doctor rejected the live environment:" | tee -a "${transcript}" >&2
+  jq -r '.toolchain.tools[] | select(.compatible == false) | "- \(.name): \(.output) (expected \(.expected_version))"' \
+    "${output_root}/doctor.json" | tee -a "${transcript}" >&2
+  exit 1
+fi
+
 set +e
 result="$("${python_bin}" -m solana_agent --repo-root "${repo_root}" missions start create-counter \
   --contract "${contract}" --state-root "${state_root}" --run-id run-live-devnet-proof \
