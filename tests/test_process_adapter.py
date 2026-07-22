@@ -25,6 +25,23 @@ def test_process_runner_uses_structured_argv_without_a_shell(tmp_path: Path, mon
     assert result.metadata["shell"] is False
 
 
+def test_process_runner_preserves_anchor_wallet_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    observed: dict[str, object] = {}
+    wallet = str(tmp_path / "id.json")
+    monkeypatch.setenv("ANCHOR_WALLET", wallet)
+
+    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        observed.update(kwargs)
+        return subprocess.CompletedProcess(argv, 0, stdout="ok", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    ProcessRunner().run(["tool"], cwd=tmp_path, timeout_seconds=5)
+
+    environment = observed["env"]
+    assert isinstance(environment, dict)
+    assert environment["ANCHOR_WALLET"] == wallet
+
+
 def test_process_runner_caps_persisted_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         subprocess,

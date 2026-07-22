@@ -11,6 +11,7 @@ from solana_agent.execution import CommandInterrupted, CommandTimedOut, Executio
 SAFE_ENVIRONMENT_KEYS = frozenset(
     {
         "ANCHOR_PROVIDER_URL",
+        "ANCHOR_WALLET",
         "CARGO_HOME",
         "HOME",
         "LANG",
