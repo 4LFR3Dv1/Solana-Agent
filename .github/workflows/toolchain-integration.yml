@@ -52,7 +52,7 @@ jobs:
           --env HOME=/tmp --env SOLANA_AGENT_RUN_INTEGRATION=1
           solana-agent-toolchain bash -lc
           "mkdir -p /tmp/solana-agent-source &&
-          cp -a solana_agent missions templates pyproject.toml README.md LICENSE toolchain.lock.json
+          cp -r solana_agent missions templates pyproject.toml README.md LICENSE toolchain.lock.json
           /tmp/solana-agent-source/ &&
           python3 -m venv /tmp/integration-venv &&
           /tmp/integration-venv/bin/pip install -e '/tmp/solana-agent-source[dev]' &&
@@ -64,7 +64,7 @@ jobs:
           --env HOME=/tmp --env SOLANA_AGENT_RUN_INTEGRATION=1
           solana-agent-toolchain bash -lc
           "mkdir -p /tmp/solana-agent-source &&
-          cp -a solana_agent missions templates pyproject.toml README.md LICENSE toolchain.lock.json
+          cp -r solana_agent missions templates pyproject.toml README.md LICENSE toolchain.lock.json
           /tmp/solana-agent-source/ &&
           python3 -m venv /tmp/counter-venv &&
           /tmp/counter-venv/bin/pip install -e '/tmp/solana-agent-source[dev]' solders==0.28.0 &&
@@ -77,7 +77,7 @@ jobs:
           --env HOME=/tmp --env HOST_UID="$(id -u)" --env HOST_GID="$(id -g)"
           solana-agent-toolchain bash -lc
           "mkdir -p /tmp/solana-agent-source &&
-          cp -a solana_agent missions templates pyproject.toml README.md LICENSE toolchain.lock.json
+          cp -r solana_agent missions templates pyproject.toml README.md LICENSE toolchain.lock.json
           /tmp/solana-agent-source/ &&
           python3 -m venv /tmp/live-proof-venv &&
           /tmp/live-proof-venv/bin/pip install -e /tmp/solana-agent-source solders==0.28.0 &&
