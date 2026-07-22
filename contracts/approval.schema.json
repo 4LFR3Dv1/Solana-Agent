@@ -2,14 +2,34 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Approval",
   "type": "object",
-  "required": ["id", "action", "approved", "approved_at"],
+  "required": [
+    "id",
+    "run_id",
+    "command_id",
+    "policy_decision_id",
+    "manifest",
+    "manifest_hash",
+    "status",
+    "requested_at",
+    "expires_at"
+  ],
   "properties": {
     "id": { "type": "string" },
-    "action": { "type": "string" },
-    "approved": { "type": "boolean" },
-    "approved_at": { "type": "string" },
-    "approved_by": { "type": "string" },
-    "note": { "type": "string" }
+    "run_id": { "type": "string" },
+    "command_id": { "type": "string" },
+    "policy_decision_id": { "type": "string" },
+    "manifest": { "type": "object" },
+    "manifest_hash": { "type": "string", "minLength": 64, "maxLength": 64 },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "approved", "denied", "expired", "consumed"]
+    },
+    "requested_at": { "type": "string" },
+    "expires_at": { "type": "string" },
+    "decided_at": { "type": ["string", "null"] },
+    "approved_by": { "type": ["string", "null"] },
+    "note": { "type": ["string", "null"] },
+    "consumed_at": { "type": ["string", "null"] }
   },
-  "additionalProperties": true
+  "additionalProperties": false
 }

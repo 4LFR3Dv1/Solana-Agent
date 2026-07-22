@@ -19,6 +19,8 @@ This repository currently defines:
 - structured schemas in `contracts/`
 - deterministic execution adapters in `scripts/solana/`
 - local runtime state in `.solana-agent/`
+- a transactional command journal in `solana_agent/execution/`
+- fail-closed policy and bound approvals in `solana_agent/authority/`
 
 The target runtime will complement coding agents, Solana Developer MCP,
 Anchor, and Solana CLI. Coding agents may propose work; the runtime remains
@@ -132,10 +134,11 @@ Runtime artifacts are stored in `.solana-agent/`, which is local-only and ignore
 
 ## Status
 
-The repository contains an initial hardcoded mission runner, local state
-persistence, contracts, Solana/Anchor adapters, and a renderable counter
-template. The immediate development priority is the governed command journal,
-executable contracts, failure persistence, and tests before another devnet run.
+The repository contains an initial hardcoded mission runner, executable
+contracts, a transactional SQLite journal, versioned policy profiles, bound
+single-use approvals, Solana/Anchor adapters, and a renderable counter template.
+The next development priority is the declarative mission engine before the
+reproducible Solana toolchain and devnet proof.
 
 ## License and provenance
 

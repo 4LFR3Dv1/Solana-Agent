@@ -37,6 +37,7 @@ runtime states and transitions.
 
 Defined by:
 
+- `solana_agent/authority/`
 - `solana_agent/execution/`
 - `solana_agent/storage/`
 
@@ -44,7 +45,12 @@ Command intent is persisted in SQLite before validation or execution. Commands,
 events, and artifacts use separate ledgers. Rejected, failed, interrupted, and
 timed-out operations remain queryable.
 
-See `docs/command-journal.md` for the current contract.
+The authority layer applies versioned, fail-closed policy profiles and path,
+cluster, wallet, spend, and secret guards. Policy decisions and bound approvals
+are persisted separately from command state.
+
+See `docs/command-journal.md` and `docs/policy-engine.md` for the current
+contracts.
 
 ## Execution Adapters
 

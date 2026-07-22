@@ -107,3 +107,6 @@ The journal currently uses a deterministic fake executor for validation. It is
 not connected to the hardcoded Solana mission runner. That integration will
 only occur after policy, approvals, redaction, and allowlisted adapters are in
 place.
+
+Those authority controls are now implemented by the versioned policy engine
+and single-use approval manifests documented in `docs/policy-engine.md`.

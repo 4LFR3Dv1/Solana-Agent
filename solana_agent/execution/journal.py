@@ -3,9 +3,13 @@ from __future__ import annotations
 import sqlite3
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
+from solana_agent.authority.approvals import ApprovalError, ApprovalService
+from solana_agent.authority.policy import PolicyEngine
+from solana_agent.authority.redaction import redact_mapping, redact_text
+from solana_agent.contracts.authority import PolicyContext, PolicyDecision, PolicyEffect
 from solana_agent.contracts.command import CommandRecord, CommandStatus
 from solana_agent.contracts.lifecycle import RunRecord
 from solana_agent.storage.repositories import JournalRepository
@@ -87,8 +91,16 @@ class ExecutionOutcome:
 
 
 class CommandJournal:
-    def __init__(self, repository: JournalRepository) -> None:
+    def __init__(
+        self,
+        repository: JournalRepository,
+        *,
+        policy_engine: PolicyEngine | None = None,
+        approval_service: ApprovalService | None = None,
+    ) -> None:
         self.repository = repository
+        self.policy_engine = policy_engine
+        self.approval_service = approval_service
 
     def create_run(
         self,
@@ -101,11 +113,14 @@ class CommandJournal:
             run_id=run_id or f"run-{uuid.uuid4().hex}",
             mission_id=mission_id,
             metadata=metadata,
+            policy_snapshot=self.policy_engine.snapshot() if self.policy_engine else None,
         )
 
     def plan(self, spec: CommandSpec) -> PlanOutcome:
         self.repository.require_run(spec.run_id)
-        idempotency_key = spec.resolved_idempotency_key()
+        redaction = redact_mapping(spec.arguments)
+        safe_spec = replace(spec, arguments=redaction.value)
+        idempotency_key = safe_spec.resolved_idempotency_key()
         existing = self.repository.find_command_by_idempotency(spec.run_id, idempotency_key)
         if existing is not None:
             return PlanOutcome(command=existing, duplicate=True)
@@ -114,15 +129,15 @@ class CommandJournal:
         try:
             command = self.repository.insert_planned_command(
                 command_id=command_id,
-                run_id=spec.run_id,
-                step_id=spec.step_id,
-                adapter=spec.adapter,
-                operation=spec.operation,
-                arguments=spec.arguments,
-                cwd=spec.cwd,
-                timeout_seconds=spec.timeout_seconds,
+                run_id=safe_spec.run_id,
+                step_id=safe_spec.step_id,
+                adapter=safe_spec.adapter,
+                operation=safe_spec.operation,
+                arguments=safe_spec.arguments,
+                cwd=safe_spec.cwd,
+                timeout_seconds=safe_spec.timeout_seconds,
                 idempotency_key=idempotency_key,
-                expected_state=spec.expected_state,
+                expected_state=safe_spec.expected_state,
             )
         except sqlite3.IntegrityError:
             concurrent = self.repository.find_command_by_idempotency(spec.run_id, idempotency_key)
@@ -140,42 +155,35 @@ class CommandJournal:
         command: CommandRecord,
         decision: ValidationDecision,
     ) -> CommandRecord:
+        safe_reason = redact_text(decision.reason)
         if decision.decision == "deny":
             return self.repository.transition_command(
                 command.id,
                 CommandStatus.REJECTED,
                 policy_decision="deny",
-                policy_reason=decision.reason,
-                error={"code": "validation_rejected", "message": decision.reason},
+                policy_reason=safe_reason,
+                error={"code": "validation_rejected", "message": safe_reason},
             )
         if decision.decision == "require_approval":
             return self.repository.transition_command(
                 command.id,
                 CommandStatus.APPROVAL_REQUIRED,
                 policy_decision="require_approval",
-                policy_reason=decision.reason,
+                policy_reason=safe_reason,
             )
         return self.repository.transition_command(
             command.id,
             CommandStatus.AUTHORIZED,
             policy_decision="allow",
-            policy_reason=decision.reason,
-        )
-
-    def authorize_approved(self, command_id: str, *, approval_id: str, reason: str) -> CommandRecord:
-        return self.repository.transition_command(
-            command_id,
-            CommandStatus.AUTHORIZED,
-            policy_decision="allow",
-            policy_reason=reason,
-            approval_id=approval_id,
+            policy_reason=safe_reason,
         )
 
     def cancel(self, command_id: str, *, reason: str) -> CommandRecord:
+        safe_reason = redact_text(reason)
         return self.repository.transition_command(
             command_id,
             CommandStatus.CANCELLED,
-            error={"code": "command_cancelled", "message": reason},
+            error={"code": "command_cancelled", "message": safe_reason},
         )
 
     def execute(
@@ -185,6 +193,7 @@ class CommandJournal:
         *,
         validation: ValidationDecision | None = None,
         validator: Callable[[CommandRecord], ValidationDecision] | None = None,
+        policy_context: PolicyContext | None = None,
     ) -> ExecutionOutcome:
         if validation is not None and validator is not None:
             raise ValueError("provide either validation or validator, not both")
@@ -194,18 +203,121 @@ class CommandJournal:
 
         command = self.repository.transition_command(plan.command.id, CommandStatus.VALIDATING)
         try:
-            decision = validator(command) if validator is not None else validation or ValidationDecision.allow()
+            if validator is not None:
+                decision = validator(command)
+            elif validation is not None:
+                decision = validation
+            elif self.policy_engine is not None:
+                if policy_context is None:
+                    decision = ValidationDecision.deny("policy context is required for governed execution")
+                else:
+                    governed = self.policy_engine.evaluate(command, policy_context)
+                    command = self._apply_policy_decision(command, governed)
+                    if command.status in {CommandStatus.REJECTED, CommandStatus.APPROVAL_REQUIRED}:
+                        return ExecutionOutcome(command=command)
+                    return self._execute_authorized(command, executor)
+            else:
+                decision = ValidationDecision.deny("no policy decision was provided; default deny")
         except Exception as exc:
             failed = self.repository.transition_command(
                 command.id,
                 CommandStatus.FAILED,
-                error={"code": "validation_exception", "message": str(exc), "type": type(exc).__name__},
+                error={
+                    "code": "validation_exception",
+                    "message": redact_text(str(exc)),
+                    "type": type(exc).__name__,
+                },
             )
             return ExecutionOutcome(command=failed)
         command = self._apply_validation_decision(command, decision)
         if command.status in {CommandStatus.REJECTED, CommandStatus.APPROVAL_REQUIRED}:
             return ExecutionOutcome(command=command)
 
+        return self._execute_authorized(command, executor)
+
+    def execute_approved(self, command_id: str, executor: Executor) -> ExecutionOutcome:
+        command = self.repository.require_command(command_id)
+        if command.status != CommandStatus.APPROVAL_REQUIRED:
+            raise ValueError("command is not awaiting approval")
+        if self.approval_service is None or command.approval_id is None:
+            return ExecutionOutcome(
+                command=self.repository.transition_command(
+                    command.id,
+                    CommandStatus.REJECTED,
+                    error={"code": "approval_unavailable", "message": "approval service or request is missing"},
+                )
+            )
+        try:
+            approval = self.approval_service.consume(command.approval_id, command)
+        except ApprovalError as exc:
+            return ExecutionOutcome(
+                command=self.repository.transition_command(
+                    command.id,
+                    CommandStatus.REJECTED,
+                    error={"code": "approval_invalid", "message": str(exc)},
+                )
+            )
+        command = self.repository.transition_command(
+            command.id,
+            CommandStatus.AUTHORIZED,
+            policy_decision="allow",
+            policy_reason="bound operator approval validated and consumed",
+            approval_id=approval.id,
+            payload={"approval_id": approval.id, "manifest_hash": approval.manifest_hash},
+        )
+        return self._execute_authorized(command, executor)
+
+    def _apply_policy_decision(self, command: CommandRecord, decision: PolicyDecision) -> CommandRecord:
+        record = self.repository.create_policy_decision(command=command, decision=decision)
+        payload = {
+            "policy_decision_id": record.id,
+            "rule_id": record.rule_id,
+            "policy_version": record.policy_version,
+            "risk": record.risk.value,
+            "input_hash": record.input_hash,
+            "required_evidence": list(record.required_evidence),
+        }
+        if decision.effect == PolicyEffect.DENY:
+            return self.repository.transition_command(
+                command.id,
+                CommandStatus.REJECTED,
+                policy_decision="deny",
+                policy_reason=decision.reason,
+                policy_decision_id=record.id,
+                payload=payload,
+                error={"code": "policy_rejected", "message": decision.reason},
+            )
+        if decision.effect == PolicyEffect.REQUIRE_APPROVAL:
+            if self.approval_service is None:
+                return self.repository.transition_command(
+                    command.id,
+                    CommandStatus.REJECTED,
+                    policy_decision="deny",
+                    policy_reason="policy requires approval but no approval service is configured",
+                    policy_decision_id=record.id,
+                    payload=payload,
+                    error={"code": "approval_service_missing", "message": "approval service is not configured"},
+                )
+            approval = self.approval_service.request(command, record)
+            return self.repository.transition_command(
+                command.id,
+                CommandStatus.APPROVAL_REQUIRED,
+                policy_decision="require_approval",
+                policy_reason=decision.reason,
+                policy_decision_id=record.id,
+                approval_id=approval.id,
+                payload={**payload, "approval_id": approval.id, "approval_manifest_hash": approval.manifest_hash},
+            )
+        return self.repository.transition_command(
+            command.id,
+            CommandStatus.AUTHORIZED,
+            policy_decision="allow",
+            policy_reason=decision.reason,
+            policy_decision_id=record.id,
+            payload=payload,
+        )
+
+    def _execute_authorized(self, command: CommandRecord, executor: Executor) -> ExecutionOutcome:
         command = self.repository.transition_command(command.id, CommandStatus.RUNNING)
         request = ExecutionRequest(
             command_id=command.id,
@@ -227,7 +339,11 @@ class CommandJournal:
 
         return ExecutionOutcome(command=self._record_result(command, result))
 
-    def recover_orphaned_commands(self, *, reason: str = "runtime restarted without an active process") -> list[CommandRecord]:
+    def recover_orphaned_commands(
+        self, *, reason: str = "runtime restarted without an active process"
+    ) -> list[CommandRecord]:
+        if self.approval_service is not None:
+            self.approval_service.expire_pending()
         recovered: list[CommandRecord] = []
         for command in self.repository.list_running_commands():
             recovered.append(
@@ -241,12 +357,13 @@ class CommandJournal:
 
     def _record_result(self, command: CommandRecord, result: ExecutionResult) -> CommandRecord:
         stdout_id, stderr_id = self._record_streams(command, result.stdout, result.stderr)
+        safe_metadata = redact_mapping(result.metadata).value
         if result.exit_code == 0:
             return self.repository.transition_command(
                 command.id,
                 CommandStatus.SUCCEEDED,
                 exit_code=result.exit_code,
-                result={"metadata": result.metadata},
+                result={"metadata": safe_metadata},
                 stdout_artifact_id=stdout_id,
                 stderr_artifact_id=stderr_id,
             )
@@ -254,7 +371,7 @@ class CommandJournal:
             command.id,
             CommandStatus.FAILED,
             exit_code=result.exit_code,
-            result={"metadata": result.metadata},
+            result={"metadata": safe_metadata},
             error={"code": "nonzero_exit", "message": f"executor exited with code {result.exit_code}"},
             stdout_artifact_id=stdout_id,
             stderr_artifact_id=stderr_id,
@@ -265,7 +382,7 @@ class CommandJournal:
         return self.repository.transition_command(
             command.id,
             CommandStatus.TIMED_OUT,
-            error={"code": "command_timed_out", "message": str(exc)},
+            error={"code": "command_timed_out", "message": redact_text(str(exc))},
             stdout_artifact_id=stdout_id,
             stderr_artifact_id=stderr_id,
         )
@@ -275,7 +392,7 @@ class CommandJournal:
         return self.repository.transition_command(
             command.id,
             CommandStatus.INTERRUPTED,
-            error={"code": "command_interrupted", "message": str(exc)},
+            error={"code": "command_interrupted", "message": redact_text(str(exc))},
             stdout_artifact_id=stdout_id,
             stderr_artifact_id=stderr_id,
         )
@@ -285,7 +402,7 @@ class CommandJournal:
         return self.repository.transition_command(
             command.id,
             CommandStatus.FAILED,
-            error={"code": "executor_exception", "message": str(exc), "type": type(exc).__name__},
+            error={"code": "executor_exception", "message": redact_text(str(exc)), "type": type(exc).__name__},
             stdout_artifact_id=stdout_id,
             stderr_artifact_id=stderr_id,
         )
@@ -295,12 +412,12 @@ class CommandJournal:
             run_id=command.run_id,
             command_id=command.id,
             kind="stdout",
-            content=stdout,
+            content=redact_text(stdout),
         )
         stderr_artifact = self.repository.create_artifact(
             run_id=command.run_id,
             command_id=command.id,
             kind="stderr",
-            content=stderr,
+            content=redact_text(stderr),
         )
         return stdout_artifact.id, stderr_artifact.id

@@ -696,6 +696,9 @@ Gate: não reinstalar nem executar a toolchain Solana antes da conclusão desta 
 
 ### Fase 2 — Authority e Policy Engine
 
+Status: implementada no core independente da toolchain pela PR2. A integração
+com adapters Solana reais permanece condicionada às Fases 4 e 5.
+
 Objetivo: nenhuma ação material ocorre sem policy explícita.
 
 Entregáveis:

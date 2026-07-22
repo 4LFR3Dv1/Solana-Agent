@@ -45,6 +45,7 @@
     "expected_state": { "type": ["string", "null"] },
     "policy_decision": { "type": ["string", "null"] },
     "policy_reason": { "type": ["string", "null"] },
+    "policy_decision_id": { "type": ["string", "null"] },
     "approval_id": { "type": ["string", "null"] },
     "started_at": { "type": ["string", "null"] },
     "finished_at": { "type": ["string", "null"] },
