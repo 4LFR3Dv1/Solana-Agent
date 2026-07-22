@@ -33,6 +33,19 @@ Defined by:
 JSON schemas define portable representations. Python contracts define strict
 runtime states and transitions.
 
+## Declarative Mission Engine
+
+Defined by:
+
+- `missions/mission-pack.json`
+- `missions/*.yaml`
+- `solana_agent/missions/`
+
+The loader validates YAML/JSON mission definitions and compiles their step DAG.
+The engine persists per-step state, evaluates preconditions and acceptance,
+pauses for bound approvals, and resumes without repeating succeeded work. See
+`docs/declarative-missions.md`.
+
 ## Command Authority and Journal
 
 Defined by:

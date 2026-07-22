@@ -46,7 +46,7 @@ class PolicyRule:
         )
 
 
-POLICY_VERSION = "solana-agent-policy/1.0.0"
+POLICY_VERSION = "solana-agent-policy/1.1.0"
 SOLANA_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 MATERIAL_SOLANA_OPERATIONS = frozenset({"airdrop", "sign", "deploy", "invoke"})
 SAFE_CLUSTERS = frozenset(
@@ -110,6 +110,16 @@ DEFAULT_RULES: tuple[PolicyRule, ...] = (
         ("build.result",),
     ),
     PolicyRule(
+        "anchor-scaffold",
+        (PolicyProfile.LOCAL_SAFE, PolicyProfile.DEVNET_SAFE),
+        "anchor",
+        "scaffold",
+        PolicyEffect.ALLOW,
+        RiskLevel.MEDIUM,
+        "Anchor scaffolding is allowed inside the governed workspace",
+        ("workspace.created",),
+    ),
+    PolicyRule(
         "anchor-test",
         (PolicyProfile.LOCAL_SAFE, PolicyProfile.DEVNET_SAFE),
         "anchor",
@@ -138,6 +148,26 @@ DEFAULT_RULES: tuple[PolicyRule, ...] = (
         RiskLevel.LOW,
         "transaction simulation does not submit state changes",
         ("simulation.result",),
+    ),
+    PolicyRule(
+        "verify-program",
+        tuple(PolicyProfile),
+        "solana",
+        "verify_program",
+        PolicyEffect.ALLOW,
+        RiskLevel.LOW,
+        "program verification is a read-only RPC operation",
+        ("program.executable",),
+    ),
+    PolicyRule(
+        "assemble-evidence",
+        (PolicyProfile.LOCAL_SAFE, PolicyProfile.DEVNET_SAFE),
+        "evidence",
+        "assemble",
+        PolicyEffect.ALLOW,
+        RiskLevel.LOW,
+        "local evidence assembly is allowed",
+        ("evidence.manifest",),
     ),
     PolicyRule(
         "devnet-airdrop",

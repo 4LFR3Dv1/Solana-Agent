@@ -1,0 +1,58 @@
+id: deploy-existing-program
+version: 1.0.0
+goal: Build, test, deploy, and capture evidence for an existing Anchor workspace.
+inputs:
+  - name: workspace
+    description: Absolute path to an existing Anchor workspace.
+  - name: project_name
+    description: Anchor program name.
+steps:
+  - id: inspect-environment
+    adapter: doctor
+    operation: inspect
+    acceptance:
+      - type: command_succeeded
+  - id: inspect-workspace
+    adapter: filesystem
+    operation: read
+    depends_on: [inspect-environment]
+    arguments:
+      path: "{{inputs.workspace}}"
+    preconditions:
+      - type: path_exists
+        parameters:
+          path: "{{inputs.workspace}}"
+    acceptance:
+      - type: command_succeeded
+  - id: build
+    adapter: anchor
+    operation: build
+    depends_on: [inspect-workspace]
+    cwd: "{{inputs.workspace}}"
+    acceptance:
+      - type: command_succeeded
+  - id: test
+    adapter: anchor
+    operation: test
+    depends_on: [build]
+    cwd: "{{inputs.workspace}}"
+    acceptance:
+      - type: command_succeeded
+  - id: deploy
+    adapter: solana
+    operation: deploy
+    depends_on: [test]
+    cwd: "{{inputs.workspace}}"
+    arguments:
+      project_name: "{{inputs.project_name}}"
+    acceptance:
+      - type: command_succeeded
+  - id: evidence
+    adapter: evidence
+    operation: assemble
+    depends_on: [deploy]
+    cwd: "{{inputs.workspace}}"
+    arguments:
+      mission: deploy-existing-program
+    acceptance:
+      - type: command_succeeded

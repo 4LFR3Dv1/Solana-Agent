@@ -1,0 +1,9 @@
+{
+  "id": "solana-agent-core",
+  "version": "1.0.0",
+  "missions": [
+    "create-counter.yaml",
+    "deploy-existing-program.yaml",
+    "verify-devnet-deploy.yaml"
+  ]
+}

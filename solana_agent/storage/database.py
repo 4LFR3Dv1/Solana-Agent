@@ -125,6 +125,31 @@ MIGRATIONS: tuple[tuple[int, str], ...] = (
         CREATE INDEX ix_approvals_status_expiry ON approvals(status, expires_at);
         """,
     ),
+    (
+        3,
+        """
+        CREATE TABLE mission_steps (
+            run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+            step_id TEXT NOT NULL,
+            definition_hash TEXT NOT NULL,
+            status TEXT NOT NULL CHECK (
+                status IN (
+                    'pending', 'running', 'waiting_approval', 'succeeded',
+                    'failed', 'blocked', 'skipped'
+                )
+            ),
+            attempt INTEGER NOT NULL DEFAULT 0 CHECK (attempt >= 0),
+            command_id TEXT REFERENCES commands(id) ON DELETE SET NULL,
+            result_json TEXT,
+            error_json TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY(run_id, step_id)
+        );
+
+        CREATE INDEX ix_mission_steps_run_status ON mission_steps(run_id, status);
+        """,
+    ),
 )
 
 

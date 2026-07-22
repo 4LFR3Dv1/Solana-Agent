@@ -1,0 +1,12 @@
+{
+  "id": "local-development",
+  "version": "1.0.0",
+  "policy_profile": "local-safe",
+  "workspace_root": ".",
+  "cluster": "localnet",
+  "wallet": null,
+  "max_lamports": null,
+  "tool_versions": {
+    "python": ">=3.11"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RuntimeContract",
+  "type": "object",
+  "required": ["id", "version", "policy_profile", "workspace_root", "tool_versions"],
+  "properties": {
+    "id": { "type": "string" },
+    "version": { "type": "string" },
+    "policy_profile": { "type": "string", "enum": ["read-only", "local-safe", "devnet-safe"] },
+    "workspace_root": { "type": "string" },
+    "cluster": { "type": ["string", "null"] },
+    "wallet": { "type": ["string", "null"] },
+    "max_lamports": { "type": ["integer", "null"], "minimum": 0 },
+    "tool_versions": { "type": "object", "additionalProperties": { "type": "string" } }
+  },
+  "additionalProperties": false
+}

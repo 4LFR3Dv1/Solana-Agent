@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MissionStepDefinition",
+  "type": "object",
+  "required": ["id", "adapter", "operation"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "adapter": { "type": "string", "minLength": 1 },
+    "operation": { "type": "string", "minLength": 1 },
+    "depends_on": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "arguments": { "type": "object" },
+    "cwd": { "type": "string" },
+    "timeout_seconds": { "type": "integer", "minimum": 1 },
+    "preconditions": { "type": "array", "items": { "$ref": "mission-check.schema.json" } },
+    "acceptance": { "type": "array", "items": { "$ref": "mission-check.schema.json" } }
+  },
+  "additionalProperties": false
+}

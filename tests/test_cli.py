@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -60,3 +61,26 @@ def test_parser_requires_a_mission_for_run() -> None:
         build_parser().parse_args(["run"])
 
     assert exc_info.value.code == 2
+
+
+def test_parser_exposes_declarative_mission_catalog() -> None:
+    args = build_parser().parse_args(["missions", "show", "create-counter"])
+
+    assert args.missions_command == "show"
+    assert args.mission_name == "create-counter"
+    assert callable(args.handler)
+
+
+def test_cli_validates_core_mission_pack() -> None:
+    completed = subprocess.run(
+        [sys.executable, "-m", "solana_agent", "missions", "validate"],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    payload = json.loads(completed.stdout)
+
+    assert completed.returncode == 0
+    assert payload["ok"] is True
+    assert payload["mission_count"] == 3

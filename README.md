@@ -21,6 +21,7 @@ This repository currently defines:
 - local runtime state in `.solana-agent/`
 - a transactional command journal in `solana_agent/execution/`
 - fail-closed policy and bound approvals in `solana_agent/authority/`
+- a declarative DAG mission engine in `solana_agent/missions/`
 
 The target runtime will complement coding agents, Solana Developer MCP,
 Anchor, and Solana CLI. Coding agents may propose work; the runtime remains
@@ -72,13 +73,22 @@ python -m solana_agent doctor
 python -m solana_agent inspect-env
 ```
 
+Inspect the declarative mission pack without installing Solana or Anchor:
+
+```bash
+python -m solana_agent missions list
+python -m solana_agent missions show create-counter
+python -m solana_agent missions validate
+```
+
 Host preflight on Windows reports WSL readiness and installed host tools. `inspect-env` is the runtime-level check and expects a usable bash environment.
 
 ```bash
 python -m solana_agent inspect-env
 ```
 
-Run the MVP mission:
+Run the legacy MVP mission compatibility path. This command is not yet wired
+to the governed declarative engine and will be replaced by PR4 adapters:
 
 ```bash
 python -m solana_agent run create-counter \
@@ -134,11 +144,11 @@ Runtime artifacts are stored in `.solana-agent/`, which is local-only and ignore
 
 ## Status
 
-The repository contains an initial hardcoded mission runner, executable
-contracts, a transactional SQLite journal, versioned policy profiles, bound
-single-use approvals, Solana/Anchor adapters, and a renderable counter template.
-The next development priority is the declarative mission engine before the
-reproducible Solana toolchain and devnet proof.
+The governed core now contains executable contracts, a transactional SQLite
+journal, versioned policy profiles, bound single-use approvals, and a
+declarative mission DAG with three missions. The older hardcoded runner remains
+disconnected for compatibility. The next development priority is replacing it
+with reproducible, governed Solana and Anchor adapters before the devnet proof.
 
 ## License and provenance
 

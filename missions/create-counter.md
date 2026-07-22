@@ -1,5 +1,7 @@
 # Mission: Create Counter
 
+Canonical executable definition: `missions/create-counter.yaml`.
+
 ## Goal
 
 Create a new Anchor counter program, test the `initialize > increment` flow, deploy it to devnet, invoke it, and generate an evidence pack.
