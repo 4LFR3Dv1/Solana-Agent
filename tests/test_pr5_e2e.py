@@ -87,6 +87,9 @@ def test_counter_template_materializes_program_with_generated_id(tmp_path: Path)
     assert "PROGRAM_ID=${program.programId.toBase58()}" in (workspace / "scripts" / "interact.ts").read_text(
         encoding="utf-8"
     )
+    assert 'require("../target/idl/counter_demo.json")' in (workspace / "scripts" / "interact.ts").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_evidence_adapter_verifies_rpc_state_and_exports_bundle(tmp_path: Path) -> None:

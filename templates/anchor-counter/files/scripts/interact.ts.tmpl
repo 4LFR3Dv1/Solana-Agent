@@ -1,5 +1,5 @@
 import * as anchor from "@coral-xyz/anchor";
-import idl from "../target/idl/__PROGRAM_SNAKE__.json";
+const idl = require("../target/idl/__PROGRAM_SNAKE__.json") as anchor.Idl;
 
 async function main() {
   const provider = anchor.AnchorProvider.env();
