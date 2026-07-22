@@ -39,12 +39,12 @@ steps:
     acceptance:
       - type: command_succeeded
   - id: deploy
-    adapter: solana
+    adapter: anchor
     operation: deploy
     depends_on: [test]
     cwd: "{{inputs.workspace}}"
     arguments:
-      project_name: "{{inputs.project_name}}"
+      cluster: "{{runtime.cluster}}"
     acceptance:
       - type: command_succeeded
   - id: evidence

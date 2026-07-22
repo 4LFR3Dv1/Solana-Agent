@@ -17,7 +17,8 @@ This repository currently defines:
 - Solana/Anchor skills in `skills/`
 - mission flows in `missions/`
 - structured schemas in `contracts/`
-- deterministic execution adapters in `scripts/solana/`
+- production adapters for filesystem, Anchor, pnpm, Solana CLI, and JSON-RPC
+- a digest-pinned Linux toolchain in `environment/` and `toolchain.lock.json`
 - local runtime state in `.solana-agent/`
 - a transactional command journal in `solana_agent/execution/`
 - fail-closed policy and bound approvals in `solana_agent/authority/`
@@ -60,9 +61,10 @@ On Windows PowerShell, activate the virtual environment with:
 .venv\Scripts\Activate.ps1
 ```
 
-The Python core and its tests do not require Solana, Anchor, Rust, a wallet,
+The Python core and its fast tests do not require Solana, Anchor, Rust, a wallet,
 WSL, or network access. Those dependencies are only required by integration
-and mission execution flows.
+and mission execution flows. For the supported container workflow, see the
+[reproducible toolchain guide](docs/reproducible-toolchain.md).
 
 ## Usage
 
@@ -87,8 +89,9 @@ Host preflight on Windows reports WSL readiness and installed host tools. `inspe
 python -m solana_agent inspect-env
 ```
 
-Run the legacy MVP mission compatibility path. This command is not yet wired
-to the governed declarative engine and will be replaced by PR4 adapters:
+Run the legacy MVP mission compatibility path. The production adapter registry
+is connected to the declarative engine through `build_governed_runtime()`;
+the compatibility CLI below remains available until the governed CLI lands:
 
 ```bash
 python -m solana_agent run create-counter \
@@ -145,10 +148,10 @@ Runtime artifacts are stored in `.solana-agent/`, which is local-only and ignore
 ## Status
 
 The governed core now contains executable contracts, a transactional SQLite
-journal, versioned policy profiles, bound single-use approvals, and a
-declarative mission DAG with three missions. The older hardcoded runner remains
-disconnected for compatibility. The next development priority is replacing it
-with reproducible, governed Solana and Anchor adapters before the devnet proof.
+journal, versioned policy profiles, bound single-use approvals, a declarative
+mission DAG, production execution adapters, and a pinned Linux toolchain. The
+older hardcoded runner remains available for compatibility. The next priority
+is the first complete mission template and a locally validated Anchor flow.
 
 ## License and provenance
 

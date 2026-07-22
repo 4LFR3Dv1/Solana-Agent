@@ -94,6 +94,32 @@ def test_local_build_is_allowed_by_local_safe_profile(tmp_path: Path) -> None:
     assert repository.list_policy_decisions(outcome.command.id)[0].rule_id == "anchor-build"
 
 
+def test_anchor_deploy_requires_a_bound_approval(tmp_path: Path) -> None:
+    journal, repository, _, _ = governed_runtime(tmp_path)
+
+    outcome = journal.execute(
+        spec(tmp_path, adapter="anchor", operation="deploy"),
+        FakeExecutor(),
+        policy_context=context(tmp_path),
+    )
+
+    assert outcome.command.status == CommandStatus.APPROVAL_REQUIRED
+    assert repository.list_policy_decisions(outcome.command.id)[0].rule_id == "anchor-devnet-deploy"
+
+
+def test_allowlisted_rpc_read_is_available_in_read_only_profile(tmp_path: Path) -> None:
+    journal, repository, _, _ = governed_runtime(tmp_path, profile=PolicyProfile.READ_ONLY)
+
+    outcome = journal.execute(
+        spec(tmp_path, adapter="solana_rpc", operation="get_health"),
+        FakeExecutor(ExecutionResult(exit_code=0, stdout='{"result":"ok"}')),
+        policy_context=context(tmp_path, max_lamports=None),
+    )
+
+    assert outcome.command.status == CommandStatus.SUCCEEDED
+    assert repository.list_policy_decisions(outcome.command.id)[0].rule_id == "rpc-read"
+
+
 def test_read_only_profile_blocks_local_build(tmp_path: Path) -> None:
     journal, repository, _, _ = governed_runtime(tmp_path, profile=PolicyProfile.READ_ONLY)
 
@@ -138,6 +164,20 @@ def test_path_escape_is_blocked(tmp_path: Path) -> None:
         spec(tmp_path, adapter="filesystem", operation="read", path=str(outside)),
         FakeExecutor(),
         policy_context=context(tmp_path, cluster=None, max_lamports=None),
+    )
+
+    assert outcome.command.status == CommandStatus.REJECTED
+    assert repository.list_policy_decisions(outcome.command.id)[0].rule_id == "path-escape"
+
+
+def test_program_binary_path_escape_is_blocked_before_deploy(tmp_path: Path) -> None:
+    journal, repository, _, _ = governed_runtime(tmp_path)
+    outside_program = tmp_path.parent / "untrusted.so"
+
+    outcome = journal.execute(
+        spec(tmp_path, adapter="solana", operation="deploy", program_path=str(outside_program)),
+        FakeExecutor(),
+        policy_context=context(tmp_path),
     )
 
     assert outcome.command.status == CommandStatus.REJECTED

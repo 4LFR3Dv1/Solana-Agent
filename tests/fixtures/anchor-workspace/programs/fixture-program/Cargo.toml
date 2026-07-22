@@ -1,0 +1,20 @@
+[package]
+name = "fixture-program"
+version = "0.1.0"
+description = "Minimal Solana Agent Anchor integration fixture"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "fixture_program"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build"]
+
+[dependencies]
+anchor-lang = "1.1.2"

@@ -1,0 +1,42 @@
+name: Pinned toolchain integration
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/toolchain-integration.yml"
+      - "environment/**"
+      - "solana_agent/adapters/**"
+      - "tests/fixtures/anchor-workspace/**"
+      - "tests/test_local_validator_integration.py"
+      - "toolchain.lock.json"
+
+permissions:
+  contents: read
+
+jobs:
+  anchor-and-validator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build pinned development image
+        run: docker build --file environment/Dockerfile --tag solana-agent-toolchain .
+      - name: Verify every pinned tool
+        run: >-
+          docker run --rm solana-agent-toolchain
+          python3 /opt/solana-agent/verify-toolchain.py /opt/solana-agent/toolchain.lock.json
+      - name: Build Anchor fixture
+        run: >-
+          docker run --rm --volume "${{ github.workspace }}:/workspace"
+          solana-agent-toolchain bash -lc
+          "cd tests/fixtures/anchor-workspace && anchor build"
+      - name: Exercise local validator adapter
+        run: >-
+          docker run --rm --volume "${{ github.workspace }}:/workspace"
+          --cap-drop ALL --security-opt no-new-privileges --security-opt seccomp=unconfined
+          --user "$(id -u):$(id -g)" --env HOME=/tmp
+          --env SOLANA_AGENT_RUN_INTEGRATION=1 solana-agent-toolchain bash -lc
+          "python3 -m venv /tmp/integration-venv &&
+          /tmp/integration-venv/bin/pip install -e '.[dev]' &&
+          /tmp/integration-venv/bin/pytest tests/test_local_validator_integration.py"

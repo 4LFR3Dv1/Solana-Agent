@@ -42,8 +42,8 @@ def test_create_counter_has_a_valid_dependency_order() -> None:
 
     assert [step.id for step in topological_steps(mission)] == [
         "inspect-environment",
-        "create-workspace",
         "scaffold",
+        "install-dependencies",
         "build",
         "test",
         "airdrop",

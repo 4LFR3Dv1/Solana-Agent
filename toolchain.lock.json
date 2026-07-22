@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "environment": {
+    "ubuntu": "22.04",
+    "ubuntu_image_digest": "sha256:1ec65b2719518e27d4d25f104d93f9fac60dc437f81452302406825c46fcc9cb",
+    "python": "3.11.9",
+    "python_image_digest": "sha256:fe8df05de0fe659668a0b6fa204c652092e3e96832a9c7d6f8cc1e0e03e663d8"
+  },
+  "tools": {
+    "python": {
+      "version": "3.11.9",
+      "command": ["python3", "--version"],
+      "version_pattern": "Python 3.11.9"
+    },
+    "rustc": {
+      "version": "1.97.1",
+      "command": ["rustc", "--version"],
+      "version_pattern": "rustc 1.97.1"
+    },
+    "cargo": {
+      "version": "1.97.1",
+      "command": ["cargo", "--version"],
+      "version_pattern": "cargo 1.97.1"
+    },
+    "solana": {
+      "version": "4.1.2",
+      "command": ["solana", "--version"],
+      "version_pattern": "4.1.2"
+    },
+    "solana-test-validator": {
+      "version": "4.1.2",
+      "command": ["solana-test-validator", "--version"],
+      "version_pattern": "4.1.2"
+    },
+    "anchor": {
+      "version": "1.1.2",
+      "command": ["anchor", "--version"],
+      "version_pattern": "anchor-cli 1.1.2"
+    },
+    "node": {
+      "version": "22.22.3",
+      "command": ["node", "--version"],
+      "version_pattern": "v22.22.3"
+    },
+    "pnpm": {
+      "version": "10.28.0",
+      "command": ["pnpm", "--version"],
+      "version_pattern": "10.28.0"
+    }
+  }
+}
