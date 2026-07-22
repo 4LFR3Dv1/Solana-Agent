@@ -70,6 +70,7 @@ RUN git clone https://github.com/jarry-xiao/proof-of-work-faucet.git /tmp/devnet
     && cd /tmp/devnet-pow \
     && git checkout --detach "${DEVNET_POW_REV}" \
     && cargo update -p wasm-bindgen --precise 0.2.88 \
+    && cargo update -p time --precise 0.3.36 \
     && cargo install --path cli --locked \
     && rm -rf /tmp/devnet-pow \
     && devnet-pow --version | grep -F "devnet-pow ${DEVNET_POW_VERSION}"
