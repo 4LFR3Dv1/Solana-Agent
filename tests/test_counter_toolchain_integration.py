@@ -26,7 +26,10 @@ def test_counter_template_builds_and_passes_anchor_test(tmp_path: Path, monkeypa
 
     workspace = tmp_path / "counter-proof"
     templates = Path(__file__).resolve().parents[1] / "templates" / "anchor-counter" / "files"
-    wallet = tmp_path / "operator.json"
+    # Anchor's generated configuration pins the provider wallet to this path.
+    # Match the real mission environment instead of relying on an environment
+    # variable that does not override the explicit Anchor.toml setting.
+    wallet = Path.home() / ".config" / "solana" / "id.json"
     subprocess.run(
         [sys.executable, str(Path(__file__).resolve().parents[1] / "scripts/solana/create_ephemeral_keypair.py"), str(wallet)],
         check=True,
@@ -40,6 +43,7 @@ def test_counter_template_builds_and_passes_anchor_test(tmp_path: Path, monkeypa
         request("anchor", "scaffold", tmp_path, workspace=str(workspace), project_name="counter-proof")
     )
     assert scaffold.exit_code == 0, scaffold.stderr
+    assert 'wallet = "~/.config/solana/id.json"' in (workspace / "Anchor.toml").read_text(encoding="utf-8")
     applied = CounterTemplateAdapter(tmp_path, templates).execute(
         request(
             "counter_template",
