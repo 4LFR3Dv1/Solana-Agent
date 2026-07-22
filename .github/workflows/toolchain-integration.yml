@@ -61,7 +61,7 @@ jobs:
           solana-agent-toolchain bash -lc
           "python3 -m venv /tmp/live-proof-venv &&
           /tmp/live-proof-venv/bin/pip install -e /workspace solders==0.28.0 &&
-          export PATH=/tmp/live-proof-venv/bin:\$PATH &&
+          PYTHON_BIN=/tmp/live-proof-venv/bin/python
           bash scripts/solana/run_live_devnet_proof.sh /workspace /workspace/.live-proof"
       - name: Render short proof video
         if: github.event_name == 'pull_request' && github.head_ref == 'agent/devnet-e2e'

@@ -9,10 +9,11 @@ state_root="${runtime_root}/state"
 contract="${runtime_root}/runtime.devnet.json"
 wallet_path="${HOME}/.config/solana/id.json"
 transcript="${output_root}/execution-transcript.txt"
+python_bin="${PYTHON_BIN:-python3}"
 
 rm -rf "${runtime_root}" "${output_root}"
 mkdir -p "$(dirname "${wallet_path}")" "${runtime_root}/workspaces" "${output_root}"
-python3 "${repo_root}/scripts/solana/create_ephemeral_keypair.py" "${wallet_path}" >/dev/null
+"${python_bin}" "${repo_root}/scripts/solana/create_ephemeral_keypair.py" "${wallet_path}" >/dev/null
 wallet="$(solana address --keypair "${wallet_path}")"
 solana config set --url devnet --keypair "${wallet_path}" >/dev/null
 export ANCHOR_PROVIDER_URL="https://api.devnet.solana.com"
@@ -41,7 +42,7 @@ cd "${repo_root}"
 } | tee "${transcript}"
 
 set +e
-result="$(python3 -m solana_agent --repo-root "${repo_root}" missions start create-counter \
+result="$("${python_bin}" -m solana_agent --repo-root "${repo_root}" missions start create-counter \
   --contract "${contract}" --state-root "${state_root}" --run-id run-live-devnet-proof \
   --input "workspace=${workspace}" --input project_name=counter-proof --input airdrop_amount=2 2>&1)"
 exit_code=$?
@@ -59,17 +60,17 @@ for attempt in $(seq 1 16); do
   if [[ "${status}" == "completed" ]]; then
     break
   fi
-  approvals="$(python3 -m solana_agent --repo-root "${repo_root}" approvals list "${run_id}" \
+  approvals="$("${python_bin}" -m solana_agent --repo-root "${repo_root}" approvals list "${run_id}" \
     --contract "${contract}" --state-root "${state_root}")"
   approval_id="$(printf '%s' "${approvals}" | jq -r '[.approvals[] | select(.status == "pending")] | last | .id // empty')"
   if [[ -n "${approval_id}" ]]; then
     echo "APPROVING=${approval_id}" | tee -a "${transcript}"
-    python3 -m solana_agent --repo-root "${repo_root}" approvals approve "${approval_id}" \
+    "${python_bin}" -m solana_agent --repo-root "${repo_root}" approvals approve "${approval_id}" \
       --by github-actions-live-proof --note "User-authorized PR5 devnet proof" \
       --contract "${contract}" --state-root "${state_root}" | tee -a "${transcript}"
   fi
   set +e
-  result="$(python3 -m solana_agent --repo-root "${repo_root}" missions resume "${run_id}" \
+  result="$("${python_bin}" -m solana_agent --repo-root "${repo_root}" missions resume "${run_id}" \
     --contract "${contract}" --state-root "${state_root}" 2>&1)"
   exit_code=$?
   set -e
@@ -91,7 +92,7 @@ deploy_signature="$(jq -r '.verification.deploy_signature' "${evidence}")"
 initialize_signature="$(jq -r '.verification.initialize_signature' "${evidence}")"
 increment_signature="$(jq -r '.verification.increment_signature' "${evidence}")"
 
-python3 -m solana_agent --repo-root "${repo_root}" missions start verify-devnet-deploy \
+"${python_bin}" -m solana_agent --repo-root "${repo_root}" missions start verify-devnet-deploy \
   --contract "${contract}" --state-root "${runtime_root}/verify-state" --run-id run-independent-verification \
   --input "program_id=${program_id}" --input "counter_pubkey=${counter_pubkey}" \
   --input "deploy_signature=${deploy_signature}" --input "initialize_signature=${initialize_signature}" \
