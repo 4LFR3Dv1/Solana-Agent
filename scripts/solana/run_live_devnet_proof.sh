@@ -10,10 +10,15 @@ contract="${runtime_root}/runtime.devnet.json"
 wallet_path="${HOME}/.config/solana/id.json"
 transcript="${output_root}/execution-transcript.txt"
 python_bin="${PYTHON_BIN:-python3}"
-export PATH="/root/.local/share/solana/install/active_release/bin:/opt/cargo/bin:/opt/pnpm:/opt/node/bin:${PATH}"
+pinned_bin="/tmp/solana-agent-pinned-bin"
+export PATH="${pinned_bin}:/root/.local/share/solana/install/active_release/bin:/opt/cargo/bin:/opt/node/bin:${PATH}"
 
 rm -rf "${runtime_root}"
-mkdir -p "$(dirname "${wallet_path}")" "${runtime_root}/workspaces" "${output_root}"
+mkdir -p "$(dirname "${wallet_path}")" "${runtime_root}/workspaces" "${output_root}" "${pinned_bin}"
+# Corepack may select a workspace-specific package manager version. Force the
+# version from toolchain.lock.json for both the doctor and mission adapters.
+printf '#!/usr/bin/env bash\nexec /opt/node/bin/corepack pnpm@10.28.0 "$@"\n' >"${pinned_bin}/pnpm"
+chmod 0755 "${pinned_bin}/pnpm"
 # The mounted output directory is intentionally writable while its parent is
 # read-only to this capability-free container. Preserve the mount point and
 # remove only content from a previous attempt.
