@@ -12,7 +12,7 @@ transcript="${output_root}/execution-transcript.txt"
 
 rm -rf "${runtime_root}" "${output_root}"
 mkdir -p "$(dirname "${wallet_path}")" "${runtime_root}/workspaces" "${output_root}"
-solana-keygen new --no-bip39-passphrase --silent --force --outfile "${wallet_path}" >/dev/null
+python3 "${repo_root}/scripts/solana/create_ephemeral_keypair.py" "${wallet_path}" >/dev/null
 wallet="$(solana address --keypair "${wallet_path}")"
 solana config set --url devnet --keypair "${wallet_path}" >/dev/null
 export ANCHOR_PROVIDER_URL="https://api.devnet.solana.com"
