@@ -293,7 +293,13 @@ def handle_commands_list(args: argparse.Namespace) -> int:
     runtime.repository.require_run(args.run_id)
     records: list[dict[str, object]] = []
     for command in runtime.repository.list_commands(args.run_id):
-        if args.failed_only and command.status.value not in {"failed", "rejected", "interrupted"}:
+        if args.failed_only and command.status.value not in {
+            "failed",
+            "rejected",
+            "cancelled",
+            "interrupted",
+            "timed_out",
+        }:
             continue
         record = asdict(command)
         if args.include_output:

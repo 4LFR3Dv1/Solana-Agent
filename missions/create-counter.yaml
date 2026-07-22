@@ -15,6 +15,7 @@ steps:
   - id: scaffold
     adapter: anchor
     operation: scaffold
+    timeout_seconds: 120
     depends_on: [inspect-environment]
     arguments:
       workspace: "{{inputs.workspace}}"
@@ -43,6 +44,7 @@ steps:
   - id: install-dependencies
     adapter: package
     operation: install
+    timeout_seconds: 120
     depends_on: [apply-counter-template]
     cwd: "{{inputs.workspace}}"
     acceptance:
@@ -50,6 +52,7 @@ steps:
   - id: build
     adapter: anchor
     operation: build
+    timeout_seconds: 300
     depends_on: [install-dependencies]
     cwd: "{{inputs.workspace}}"
     acceptance:
@@ -57,6 +60,7 @@ steps:
   - id: test
     adapter: anchor
     operation: test
+    timeout_seconds: 300
     depends_on: [build]
     cwd: "{{inputs.workspace}}"
     acceptance:
@@ -77,6 +81,7 @@ steps:
   - id: deploy
     adapter: anchor
     operation: deploy
+    timeout_seconds: 600
     depends_on: [funding-check]
     cwd: "{{inputs.workspace}}"
     arguments:
@@ -86,6 +91,7 @@ steps:
   - id: invoke
     adapter: package
     operation: run
+    timeout_seconds: 180
     depends_on: [deploy]
     cwd: "{{inputs.workspace}}"
     arguments:

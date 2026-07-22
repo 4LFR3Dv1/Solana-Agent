@@ -52,6 +52,10 @@ def test_create_counter_has_a_valid_dependency_order() -> None:
         "invoke",
         "evidence",
     ]
+    timeouts = {step.id: step.timeout_seconds for step in mission.steps}
+    assert timeouts["build"] == 300
+    assert timeouts["test"] == 300
+    assert timeouts["deploy"] == 600
 
 
 def test_json_mission_is_supported_without_code_changes(tmp_path: Path) -> None:
