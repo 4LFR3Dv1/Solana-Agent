@@ -11,6 +11,7 @@ RPC, and assemble a machine-readable evidence bundle for a devnet deployment.
 
 - Program ID
 - counter account public key
+- deploy transaction signature
 - initialize transaction signature
 - increment transaction signature
 - expected counter value, default `1`

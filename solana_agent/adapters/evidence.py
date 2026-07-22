@@ -15,6 +15,8 @@ from .solana_cli import PUBLIC_KEY
 from .solana_rpc import RpcTransport, UrllibRpcTransport
 
 MARKER = re.compile(r"^(PROGRAM_ID|COUNTER_PUBKEY|INITIALIZE_SIGNATURE|INCREMENT_SIGNATURE|COUNT)=(.+)$")
+DEPLOY_SIGNATURE = re.compile(r"^Signature:\s+([1-9A-HJ-NP-Za-km-z]{64,88})\s*$")
+DEPLOY_PROGRAM_ID = re.compile(r"^Program Id:\s+([1-9A-HJ-NP-Za-km-z]{32,44})\s*$")
 
 
 class EvidenceAdapter:
@@ -40,7 +42,10 @@ class EvidenceAdapter:
         markers = self._evidence_markers(current.run_id, request.arguments)
         program_id = self._public_key(markers, "PROGRAM_ID")
         counter_pubkey = self._public_key(markers, "COUNTER_PUBKEY")
-        signatures = [markers[name] for name in ("INITIALIZE_SIGNATURE", "INCREMENT_SIGNATURE")]
+        signatures = [
+            markers[name]
+            for name in ("DEPLOY_SIGNATURE", "INITIALIZE_SIGNATURE", "INCREMENT_SIGNATURE")
+        ]
         expected_count = int(str(request.arguments.get("expected_count", "1")))
         if int(markers["COUNT"]) != expected_count:
             raise ValueError(f"interaction reported unexpected counter value: {markers.get('COUNT')!r}")
@@ -84,8 +89,9 @@ class EvidenceAdapter:
                 "counter_pubkey": counter_pubkey,
                 "counter_owner": counter_value.get("owner"),
                 "counter_count": on_chain_count,
-                "initialize_signature": signatures[0],
-                "increment_signature": signatures[1],
+                "deploy_signature": signatures[0],
+                "initialize_signature": signatures[1],
+                "increment_signature": signatures[2],
                 "signature_statuses": statuses,
             },
             "commands": [asdict(command) for command in commands],
@@ -128,8 +134,21 @@ class EvidenceAdapter:
             match = MARKER.fullmatch(line.strip())
             if match:
                 markers[match.group(1)] = match.group(2).strip()
+        deploy = next((item for item in reversed(self.repository.list_commands(run_id)) if item.step_id == "deploy"), None)
+        if deploy is not None and deploy.stdout_artifact_id is not None:
+            deploy_stdout = self.repository.require_artifact(deploy.stdout_artifact_id).content
+            if deploy.stderr_artifact_id is not None:
+                deploy_stdout += "\n" + self.repository.require_artifact(deploy.stderr_artifact_id).content
+            for line in deploy_stdout.splitlines():
+                signature = DEPLOY_SIGNATURE.fullmatch(line.strip())
+                if signature:
+                    markers["DEPLOY_SIGNATURE"] = signature.group(1)
+                deployed_program = DEPLOY_PROGRAM_ID.fullmatch(line.strip())
+                if deployed_program and markers.get("PROGRAM_ID") not in {None, deployed_program.group(1)}:
+                    raise ValueError("deploy and invoke reported different Program IDs")
         missing = {
             "PROGRAM_ID",
+            "DEPLOY_SIGNATURE",
             "COUNTER_PUBKEY",
             "INITIALIZE_SIGNATURE",
             "INCREMENT_SIGNATURE",
@@ -142,6 +161,7 @@ class EvidenceAdapter:
     def _evidence_markers(self, run_id: str, arguments: dict[str, Any]) -> dict[str, str]:
         names = {
             "PROGRAM_ID": "program_id",
+            "DEPLOY_SIGNATURE": "deploy_signature",
             "COUNTER_PUBKEY": "counter_pubkey",
             "INITIALIZE_SIGNATURE": "initialize_signature",
             "INCREMENT_SIGNATURE": "increment_signature",

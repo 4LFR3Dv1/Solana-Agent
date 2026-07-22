@@ -8,6 +8,7 @@ on:
       - "environment/**"
       - "solana_agent/adapters/**"
       - "templates/anchor-counter/**"
+      - "scripts/solana/**"
       - "tests/fixtures/anchor-workspace/**"
       - "tests/test_counter_toolchain_integration.py"
       - "tests/test_local_validator_integration.py"
@@ -51,3 +52,25 @@ jobs:
           "python3 -m venv /tmp/counter-venv &&
           /tmp/counter-venv/bin/pip install -e '.[dev]' &&
           /tmp/counter-venv/bin/pytest tests/test_counter_toolchain_integration.py"
+      - name: Run governed live devnet proof
+        if: github.event_name == 'pull_request' && github.head_ref == 'agent/devnet-e2e'
+        run: >-
+          docker run --rm --volume "${{ github.workspace }}:/workspace"
+          --cap-drop ALL --security-opt no-new-privileges --security-opt seccomp=unconfined
+          --user "$(id -u):$(id -g)" --env HOME=/tmp
+          solana-agent-toolchain bash -lc
+          "python3 -m venv /tmp/live-proof-venv &&
+          /tmp/live-proof-venv/bin/pip install -e /workspace &&
+          export PATH=/tmp/live-proof-venv/bin:\$PATH &&
+          bash scripts/solana/run_live_devnet_proof.sh /workspace /workspace/.live-proof"
+      - name: Render short proof video
+        if: github.event_name == 'pull_request' && github.head_ref == 'agent/devnet-e2e'
+        run: bash scripts/solana/render_proof_video.sh .live-proof/public-summary.json
+      - name: Upload sanitized live proof
+        if: always() && github.event_name == 'pull_request' && github.head_ref == 'agent/devnet-e2e'
+        uses: actions/upload-artifact@v4
+        with:
+          name: solana-agent-live-devnet-proof
+          path: .live-proof/
+          if-no-files-found: warn
+          retention-days: 30

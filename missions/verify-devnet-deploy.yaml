@@ -6,6 +6,8 @@ inputs:
     description: Solana Program ID to verify.
   - name: counter_pubkey
     description: Counter account whose state must be verified.
+  - name: deploy_signature
+    description: Program deployment transaction signature.
   - name: initialize_signature
     description: Initialize transaction signature.
   - name: increment_signature
@@ -37,6 +39,7 @@ steps:
       mission: verify-devnet-deploy
       program_id: "{{inputs.program_id}}"
       counter_pubkey: "{{inputs.counter_pubkey}}"
+      deploy_signature: "{{inputs.deploy_signature}}"
       initialize_signature: "{{inputs.initialize_signature}}"
       increment_signature: "{{inputs.increment_signature}}"
       expected_count: "{{inputs.expected_count}}"

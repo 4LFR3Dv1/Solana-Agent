@@ -18,6 +18,7 @@ from solana_agent.storage import Database, JournalRepository
 
 PROGRAM_ID = "11111111111111111111111111111111"
 COUNTER_PUBKEY = "SysvarRent111111111111111111111111111111111"
+DEPLOY_SIGNATURE = "2" * 64
 
 
 class EvidenceTransport:
@@ -30,6 +31,7 @@ class EvidenceTransport:
                     "value": [
                         {"confirmationStatus": "confirmed", "err": None, "slot": 1},
                         {"confirmationStatus": "finalized", "err": None, "slot": 2},
+                        {"confirmationStatus": "finalized", "err": None, "slot": 3},
                     ]
                 }
             }
@@ -90,6 +92,11 @@ def test_evidence_adapter_verifies_rpc_state_and_exports_bundle(tmp_path: Path) 
     repository = JournalRepository(database)
     journal = CommandJournal(repository)
     journal.create_run(mission_id="create-counter", run_id="run-proof")
+    journal.execute(
+        CommandSpec("run-proof", "deploy", "anchor", "deploy", cwd=str(workspace)),
+        FakeExecutor(ExecutionResult(0, stdout=f"Program Id: {PROGRAM_ID}\nSignature: {DEPLOY_SIGNATURE}\n")),
+        validator=lambda _: ValidationDecision.allow(),
+    )
     invoke_stdout = "\n".join(
         [
             f"PROGRAM_ID={PROGRAM_ID}",
@@ -119,5 +126,6 @@ def test_evidence_adapter_verifies_rpc_state_and_exports_bundle(tmp_path: Path) 
     manifest = json.loads(evidence_path.read_text(encoding="utf-8"))
     assert result.metadata["verified"] is True
     assert manifest["verification"]["program_executable"] is True
+    assert manifest["verification"]["deploy_signature"] == DEPLOY_SIGNATURE
     assert manifest["verification"]["counter_count"] == 1
     assert {item.kind for item in repository.list_artifacts(planned.id)} == {"evidence.manifest"}

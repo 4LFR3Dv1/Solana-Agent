@@ -74,6 +74,7 @@ The invoke script emits machine-readable markers for:
 
 - Program ID;
 - counter account public key;
+- deploy signature captured from Anchor;
 - initialize signature;
 - increment signature;
 - observed counter value.
@@ -100,6 +101,7 @@ solana-agent missions start verify-devnet-deploy \
   --contract runtime.devnet.json \
   --input program_id=PROGRAM_ID \
   --input counter_pubkey=COUNTER_ACCOUNT \
+  --input deploy_signature=DEPLOY_SIGNATURE \
   --input initialize_signature=INITIALIZE_SIGNATURE \
   --input increment_signature=INCREMENT_SIGNATURE \
   --input expected_count=1
