@@ -122,6 +122,14 @@ def test_registry_and_runtime_factory_connect_production_adapters(tmp_path: Path
     )
     runtime = build_governed_runtime(tmp_path / ".state", contract)
 
-    assert set(registry) == {"doctor", "filesystem", "anchor", "package", "solana", "solana_rpc"}
-    assert set(runtime.engine.executors) == set(registry)
+    assert set(registry) == {
+        "doctor",
+        "filesystem",
+        "counter_template",
+        "anchor",
+        "package",
+        "solana",
+        "solana_rpc",
+    }
+    assert set(runtime.engine.executors) == {*registry, "evidence"}
     assert runtime.database.path.is_file()

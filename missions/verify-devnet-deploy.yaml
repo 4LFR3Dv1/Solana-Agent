@@ -1,9 +1,19 @@
 id: verify-devnet-deploy
-version: 1.0.0
+version: 1.1.0
 goal: Verify a devnet Program ID and assemble independently checkable evidence.
 inputs:
   - name: program_id
     description: Solana Program ID to verify.
+  - name: counter_pubkey
+    description: Counter account whose state must be verified.
+  - name: initialize_signature
+    description: Initialize transaction signature.
+  - name: increment_signature
+    description: Increment transaction signature.
+  - name: expected_count
+    required: false
+    default: "1"
+    description: Expected counter value encoded in the account.
 steps:
   - id: inspect-environment
     adapter: doctor
@@ -26,5 +36,16 @@ steps:
     arguments:
       mission: verify-devnet-deploy
       program_id: "{{inputs.program_id}}"
+      counter_pubkey: "{{inputs.counter_pubkey}}"
+      initialize_signature: "{{inputs.initialize_signature}}"
+      increment_signature: "{{inputs.increment_signature}}"
+      expected_count: "{{inputs.expected_count}}"
     acceptance:
       - type: command_succeeded
+      - type: result_equals
+        parameters:
+          path: metadata.verified
+          expected: true
+      - type: artifact_kind_exists
+        parameters:
+          kind: evidence.manifest

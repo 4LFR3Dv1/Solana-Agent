@@ -84,3 +84,19 @@ def test_cli_validates_core_mission_pack() -> None:
     assert completed.returncode == 0
     assert payload["ok"] is True
     assert payload["mission_count"] == 3
+
+
+def test_parser_exposes_governed_start_resume_and_approval_commands(tmp_path: Path) -> None:
+    contract = tmp_path / "runtime.json"
+    start = build_parser().parse_args(
+        ["missions", "start", "create-counter", "--contract", str(contract), "--input", "project_name=counter"]
+    )
+    resume = build_parser().parse_args(["missions", "resume", "run-1", "--contract", str(contract)])
+    approve = build_parser().parse_args(
+        ["approvals", "approve", "approval-1", "--by", "operator", "--contract", str(contract)]
+    )
+
+    assert start.mission_name == "create-counter"
+    assert start.input == ["project_name=counter"]
+    assert resume.run_id == "run-1"
+    assert approve.approval_decision == "approve"

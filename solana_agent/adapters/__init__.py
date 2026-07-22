@@ -1,7 +1,9 @@
 """Structured production adapters for governed mission execution."""
 
 from .anchor import AnchorAdapter
+from .counter_template import CounterTemplateAdapter
 from .doctor import DoctorAdapter
+from .evidence import EvidenceAdapter
 from .filesystem import FilesystemAdapter
 from .package_manager import PackageManagerAdapter
 from .process import ProcessRunner
@@ -13,7 +15,9 @@ from .validator import LocalValidator, LocalValidatorError
 __all__ = [
     "AdapterConfig",
     "AnchorAdapter",
+    "CounterTemplateAdapter",
     "DoctorAdapter",
+    "EvidenceAdapter",
     "FilesystemAdapter",
     "LocalValidator",
     "LocalValidatorError",

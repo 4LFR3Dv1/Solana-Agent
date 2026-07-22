@@ -1,5 +1,5 @@
 id: create-counter
-version: 1.0.0
+version: 1.1.0
 goal: Scaffold, test, deploy, invoke, and verify an Anchor counter on devnet.
 inputs:
   - name: workspace
@@ -29,10 +29,25 @@ steps:
           path: "{{inputs.workspace}}"
     acceptance:
       - type: command_succeeded
+  - id: apply-counter-template
+    adapter: counter_template
+    operation: apply
+    depends_on: [scaffold]
+    arguments:
+      workspace: "{{inputs.workspace}}"
+      project_name: "{{inputs.project_name}}"
+      cluster: "{{runtime.cluster}}"
+    cwd: "{{inputs.workspace}}"
+    acceptance:
+      - type: command_succeeded
+      - type: result_equals
+        parameters:
+          path: metadata.file_count
+          expected: 5
   - id: install-dependencies
     adapter: package
     operation: install
-    depends_on: [scaffold]
+    depends_on: [apply-counter-template]
     cwd: "{{inputs.workspace}}"
     acceptance:
       - type: command_succeeded
@@ -90,3 +105,10 @@ steps:
       mission: create-counter
     acceptance:
       - type: command_succeeded
+      - type: result_equals
+        parameters:
+          path: metadata.verified
+          expected: true
+      - type: artifact_kind_exists
+        parameters:
+          kind: evidence.manifest

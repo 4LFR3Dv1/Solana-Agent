@@ -29,6 +29,7 @@ def build_governed_runtime(state_root: Path, contract: RuntimeContract) -> Gover
         AdapterConfig(
             workspace_root=Path(contract.workspace_root),
             cluster=contract.cluster or "localnet",
+            repository=repository,
         )
     )
     return GovernedRuntime(

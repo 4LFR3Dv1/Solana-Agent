@@ -29,3 +29,6 @@ Create a new Anchor counter program, test the `initialize > increment` flow, dep
 - deployment record
 - invocation artifacts
 - evidence pack
+
+The governed CLI and approval/resume procedure are documented in
+[`docs/pr5-devnet-e2e.md`](../docs/pr5-devnet-e2e.md).

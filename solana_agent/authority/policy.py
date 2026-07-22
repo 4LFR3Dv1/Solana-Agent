@@ -46,7 +46,7 @@ class PolicyRule:
         )
 
 
-POLICY_VERSION = "solana-agent-policy/1.2.0"
+POLICY_VERSION = "solana-agent-policy/1.3.0"
 SOLANA_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 MATERIAL_SOLANA_OPERATIONS = frozenset({"airdrop", "sign", "deploy", "invoke"})
 MATERIAL_ADAPTER_OPERATIONS = frozenset(
@@ -121,6 +121,16 @@ DEFAULT_RULES: tuple[PolicyRule, ...] = (
         RiskLevel.MEDIUM,
         "Anchor scaffolding is allowed inside the governed workspace",
         ("workspace.created",),
+    ),
+    PolicyRule(
+        "apply-counter-template",
+        (PolicyProfile.LOCAL_SAFE, PolicyProfile.DEVNET_SAFE),
+        "counter_template",
+        "apply",
+        PolicyEffect.ALLOW,
+        RiskLevel.MEDIUM,
+        "the packaged counter template may be applied inside a newly scaffolded workspace",
+        ("template.files", "program.id"),
     ),
     PolicyRule(
         "anchor-test",

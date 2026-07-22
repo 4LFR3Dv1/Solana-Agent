@@ -28,6 +28,7 @@ async function main() {
 
   const counterAccount = await program.account.counter.fetch(counter.publicKey);
 
+  console.log(`PROGRAM_ID=${program.programId.toBase58()}`);
   console.log(`COUNTER_PUBKEY=${counter.publicKey.toBase58()}`);
   console.log(`INITIALIZE_SIGNATURE=${initializeSignature}`);
   console.log(`INCREMENT_SIGNATURE=${incrementSignature}`);
