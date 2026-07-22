@@ -51,18 +51,24 @@ jobs:
           --cap-drop ALL --security-opt no-new-privileges --security-opt seccomp=unconfined
           --env HOME=/tmp --env SOLANA_AGENT_RUN_INTEGRATION=1
           solana-agent-toolchain bash -lc
-          "python3 -m venv /tmp/integration-venv &&
-          /tmp/integration-venv/bin/pip install -e '.[dev]' &&
-          /tmp/integration-venv/bin/pytest tests/test_local_validator_integration.py"
+          "mkdir -p /tmp/solana-agent-source &&
+          cp -a solana_agent missions templates pyproject.toml README.md LICENSE toolchain.lock.json
+          /tmp/solana-agent-source/ &&
+          python3 -m venv /tmp/integration-venv &&
+          /tmp/integration-venv/bin/pip install -e '/tmp/solana-agent-source[dev]' &&
+          /tmp/integration-venv/bin/pytest /workspace/tests/test_local_validator_integration.py"
       - name: Build and test generated counter
         run: >-
           docker run --rm --volume "${{ github.workspace }}:/workspace"
           --cap-drop ALL --security-opt no-new-privileges --security-opt seccomp=unconfined
           --env HOME=/tmp --env SOLANA_AGENT_RUN_INTEGRATION=1
           solana-agent-toolchain bash -lc
-          "python3 -m venv /tmp/counter-venv &&
-          /tmp/counter-venv/bin/pip install -e '.[dev]' solders==0.28.0 &&
-          /tmp/counter-venv/bin/pytest tests/test_counter_toolchain_integration.py"
+          "mkdir -p /tmp/solana-agent-source &&
+          cp -a solana_agent missions templates pyproject.toml README.md LICENSE toolchain.lock.json
+          /tmp/solana-agent-source/ &&
+          python3 -m venv /tmp/counter-venv &&
+          /tmp/counter-venv/bin/pip install -e '/tmp/solana-agent-source[dev]' solders==0.28.0 &&
+          /tmp/counter-venv/bin/pytest /workspace/tests/test_counter_toolchain_integration.py"
       - name: Run governed live devnet proof
         if: github.event_name == 'pull_request' && github.head_ref == 'agent/devnet-e2e'
         run: >-
@@ -70,8 +76,11 @@ jobs:
           --cap-drop ALL --security-opt no-new-privileges --security-opt seccomp=unconfined
           --env HOME=/tmp --env HOST_UID="$(id -u)" --env HOST_GID="$(id -g)"
           solana-agent-toolchain bash -lc
-          "python3 -m venv /tmp/live-proof-venv &&
-          /tmp/live-proof-venv/bin/pip install -e /workspace solders==0.28.0 &&
+          "mkdir -p /tmp/solana-agent-source &&
+          cp -a solana_agent missions templates pyproject.toml README.md LICENSE toolchain.lock.json
+          /tmp/solana-agent-source/ &&
+          python3 -m venv /tmp/live-proof-venv &&
+          /tmp/live-proof-venv/bin/pip install -e /tmp/solana-agent-source solders==0.28.0 &&
           PYTHON_BIN=/tmp/live-proof-venv/bin/python
           bash scripts/solana/run_live_devnet_proof.sh /workspace /workspace/.live-proof"
       - name: Render short proof video
