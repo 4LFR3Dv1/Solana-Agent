@@ -100,3 +100,23 @@ def test_parser_exposes_governed_start_resume_and_approval_commands(tmp_path: Pa
     assert start.input == ["project_name=counter"]
     assert resume.run_id == "run-1"
     assert approve.approval_decision == "approve"
+
+
+def test_parser_exposes_failed_command_output_inspection(tmp_path: Path) -> None:
+    contract = tmp_path / "runtime.json"
+    args = build_parser().parse_args(
+        [
+            "commands",
+            "list",
+            "run-1",
+            "--contract",
+            str(contract),
+            "--failed-only",
+            "--include-output",
+        ]
+    )
+
+    assert args.commands_command == "list"
+    assert args.run_id == "run-1"
+    assert args.failed_only is True
+    assert args.include_output is True

@@ -47,7 +47,7 @@ def test_create_counter_has_a_valid_dependency_order() -> None:
         "install-dependencies",
         "build",
         "test",
-        "airdrop",
+        "funding-check",
         "deploy",
         "invoke",
         "evidence",

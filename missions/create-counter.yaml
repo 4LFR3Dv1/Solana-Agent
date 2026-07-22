@@ -6,10 +6,6 @@ inputs:
     description: Absolute path for the new Anchor workspace.
   - name: project_name
     description: Anchor project and program name.
-  - name: airdrop_amount
-    required: false
-    default: "1"
-    description: Devnet SOL requested before deployment.
 steps:
   - id: inspect-environment
     adapter: doctor
@@ -68,12 +64,12 @@ steps:
       - type: exit_code_equals
         parameters:
           value: 0
-  - id: airdrop
+  - id: funding-check
     adapter: solana
-    operation: airdrop
+    operation: require_balance
     depends_on: [test]
     arguments:
-      amount: "{{inputs.airdrop_amount}}"
+      minimum_lamports: 2000000000
       cluster: "{{runtime.cluster}}"
       wallet: "{{runtime.wallet}}"
     acceptance:
@@ -81,7 +77,7 @@ steps:
   - id: deploy
     adapter: anchor
     operation: deploy
-    depends_on: [airdrop]
+    depends_on: [funding-check]
     cwd: "{{inputs.workspace}}"
     arguments:
       cluster: "{{runtime.cluster}}"

@@ -23,6 +23,7 @@ def test_repository_toolchain_lock_is_complete() -> None:
         "anchor",
         "node",
         "pnpm",
+        "devnet-pow",
     }
 
 

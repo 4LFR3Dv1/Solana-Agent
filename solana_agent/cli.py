@@ -88,6 +88,15 @@ def build_parser() -> argparse.ArgumentParser:
         _add_governed_arguments(decision_parser)
         decision_parser.set_defaults(handler=handle_approval_decision, approval_decision=decision)
 
+    commands_parser = subparsers.add_parser("commands", help="Inspect the persisted command journal.")
+    commands_subparsers = commands_parser.add_subparsers(dest="commands_command", required=True)
+    commands_list = commands_subparsers.add_parser("list", help="List commands recorded for a run.")
+    commands_list.add_argument("run_id")
+    commands_list.add_argument("--failed-only", action="store_true")
+    commands_list.add_argument("--include-output", action="store_true")
+    _add_governed_arguments(commands_list)
+    commands_list.set_defaults(handler=handle_commands_list)
+
     run_parser = subparsers.add_parser("run", help="Run a supported mission.")
     run_subparsers = run_parser.add_subparsers(dest="mission_name", required=True)
 
@@ -276,6 +285,30 @@ def handle_approval_decision(args: argparse.Namespace) -> int:
     method = runtime.approvals.approve if args.approval_decision == "approve" else runtime.approvals.deny
     record = method(args.approval_id, approved_by=args.decided_by, note=args.note)
     print(json.dumps(asdict(record), indent=2, default=str))
+    return 0
+
+
+def handle_commands_list(args: argparse.Namespace) -> int:
+    _, runtime = _governed_runtime(args)
+    runtime.repository.require_run(args.run_id)
+    records: list[dict[str, object]] = []
+    for command in runtime.repository.list_commands(args.run_id):
+        if args.failed_only and command.status.value not in {"failed", "rejected", "interrupted"}:
+            continue
+        record = asdict(command)
+        if args.include_output:
+            record["stdout"] = (
+                runtime.repository.require_artifact(command.stdout_artifact_id).content
+                if command.stdout_artifact_id
+                else ""
+            )
+            record["stderr"] = (
+                runtime.repository.require_artifact(command.stderr_artifact_id).content
+                if command.stderr_artifact_id
+                else ""
+            )
+        records.append(record)
+    print(json.dumps({"run_id": args.run_id, "commands": records}, indent=2, default=str))
     return 0
 
 

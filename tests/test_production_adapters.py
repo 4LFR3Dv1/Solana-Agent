@@ -19,8 +19,9 @@ from solana_agent.runtime_factory import build_governed_runtime
 
 
 class RecordingRunner:
-    def __init__(self) -> None:
+    def __init__(self, result: ExecutionResult | None = None) -> None:
         self.calls: list[tuple[list[str], Path, int]] = []
+        self.result = result or ExecutionResult(0, stdout="ok", metadata={"shell": False})
 
     def run(
         self,
@@ -32,7 +33,7 @@ class RecordingRunner:
     ) -> ExecutionResult:
         del environment
         self.calls.append((argv, cwd, timeout_seconds))
-        return ExecutionResult(0, stdout="ok", metadata={"shell": False})
+        return self.result
 
 
 class RecordingTransport:
@@ -93,6 +94,39 @@ def test_solana_cli_inherits_allowlisted_cluster_and_rejects_mainnet(tmp_path: P
     ]
     with pytest.raises(ValueError, match="cluster must be"):
         adapter.execute(request("solana", "balance", tmp_path, cluster="mainnet-beta"))
+
+
+def test_solana_cli_requires_minimum_prefunded_balance(tmp_path: Path) -> None:
+    funded_runner = RecordingRunner(ExecutionResult(0, stdout="2000000000 lamports\n", metadata={"shell": False}))
+    funded = SolanaCliAdapter(funded_runner, default_cluster="devnet")  # type: ignore[arg-type]
+    result = funded.execute(
+        request(
+            "solana",
+            "require_balance",
+            tmp_path,
+            wallet="F1K3nPb4JcZ7nd6yEpWtspbCoiJzo1bL7tnUNF6SfHcp",
+            minimum_lamports=2_000_000_000,
+        )
+    )
+
+    assert result.exit_code == 0
+    assert result.metadata["balance_lamports"] == 2_000_000_000
+    assert "--lamports" in funded_runner.calls[0][0]
+
+    empty_runner = RecordingRunner(ExecutionResult(0, stdout="0 lamports\n", metadata={"shell": False}))
+    empty = SolanaCliAdapter(empty_runner, default_cluster="devnet")  # type: ignore[arg-type]
+    rejected = empty.execute(
+        request(
+            "solana",
+            "require_balance",
+            tmp_path,
+            wallet="F1K3nPb4JcZ7nd6yEpWtspbCoiJzo1bL7tnUNF6SfHcp",
+            minimum_lamports=2_000_000_000,
+        )
+    )
+
+    assert rejected.exit_code == 1
+    assert "below required minimum" in rejected.stderr
 
 
 def test_rpc_adapter_builds_json_rpc_and_surfaces_rpc_errors(tmp_path: Path) -> None:

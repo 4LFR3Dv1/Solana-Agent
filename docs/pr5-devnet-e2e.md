@@ -8,11 +8,17 @@ policy decisions, approvals, persistence, RPC verification, and evidence export.
 
 ```text
 doctor → anchor scaffold → apply counter template → install → build → test
-       → approve airdrop → airdrop
+       → require pre-funded balance
        → approve deploy  → deploy
        → approve invoke  → initialize + increment
        → verify RPC      → evidence.json
 ```
+
+The CI proof restores a dedicated signer from a masked GitHub Actions secret.
+When its reusable balance is below 2 SOL, the proof bootstraps it through the
+version-pinned `devnet-pow` faucet documented by Solana, then the mission checks
+that minimum balance before allowing deployment. The private key is written
+only inside the ephemeral container and is never uploaded as an artifact.
 
 The mission pauses independently at every material operation. An approval is
 bound to the exact command and policy input hash, expires, is single-use, and is
@@ -51,8 +57,7 @@ environment. The runtime persists only its public address.
 solana-agent missions start create-counter \
   --contract runtime.devnet.json \
   --input workspace=/workspace/proofs/counter-demo \
-  --input project_name=counter-demo \
-  --input airdrop_amount=1
+  --input project_name=counter-demo
 ```
 
 When the result is `waiting_approval`, inspect the complete bound request:
@@ -65,8 +70,15 @@ solana-agent approvals approve APPROVAL_ID \
 solana-agent missions resume RUN_ID --contract runtime.devnet.json
 ```
 
-Repeat the decision and resume sequence for airdrop, deploy, and invoke. A
+Repeat the decision and resume sequence for deploy and invoke. A
 denied, expired, or altered approval fails closed.
+
+To inspect a failed command with its persisted stdout and stderr:
+
+```bash
+solana-agent commands list RUN_ID --contract runtime.devnet.json \
+  --failed-only --include-output
+```
 
 ## Evidence contract
 

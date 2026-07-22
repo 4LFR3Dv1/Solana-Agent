@@ -26,7 +26,8 @@ find "${output_root}" -mindepth 1 -depth -delete
 command -v solana >/dev/null
 command -v anchor >/dev/null
 command -v pnpm >/dev/null
-"${python_bin}" "${repo_root}/scripts/solana/create_ephemeral_keypair.py" "${wallet_path}" >/dev/null
+command -v devnet-pow >/dev/null
+"${python_bin}" "${repo_root}/scripts/solana/restore_devnet_keypair.py" "${wallet_path}" >/dev/null
 wallet="$(solana address --keypair "${wallet_path}")"
 solana config set --url devnet --keypair "${wallet_path}" >/dev/null
 export ANCHOR_PROVIDER_URL="https://api.devnet.solana.com"
@@ -54,6 +55,24 @@ cd "${repo_root}"
   echo "WALLET=${wallet}"
 } | tee "${transcript}"
 
+balance_lamports="$(solana balance "${wallet}" --url devnet --lamports | awk '{print $1}')"
+if ! [[ "${balance_lamports}" =~ ^[0-9]+$ ]]; then
+  echo "Unable to parse devnet balance: ${balance_lamports}" | tee -a "${transcript}" >&2
+  exit 1
+fi
+echo "BALANCE_BEFORE_LAMPORTS=${balance_lamports}" | tee -a "${transcript}"
+if (( balance_lamports < 2000000000 )); then
+  echo "FUNDING_METHOD=devnet-pow TARGET_LAMPORTS=2000000000" | tee -a "${transcript}"
+  timeout 900 devnet-pow --keypair-path "${wallet_path}" --url dev \
+    mine --target-lamports 2000000000 2>&1 | tee -a "${transcript}"
+fi
+balance_lamports="$(solana balance "${wallet}" --url devnet --lamports | awk '{print $1}')"
+echo "BALANCE_READY_LAMPORTS=${balance_lamports}" | tee -a "${transcript}"
+if ! [[ "${balance_lamports}" =~ ^[0-9]+$ ]] || (( balance_lamports < 2000000000 )); then
+  echo "Persistent wallet did not reach the required 2000000000 lamports" | tee -a "${transcript}" >&2
+  exit 1
+fi
+
 "${python_bin}" -m solana_agent --repo-root "${repo_root}" doctor >"${output_root}/doctor.json"
 cat "${output_root}/doctor.json" | tee -a "${transcript}"
 if [[ "$(jq -r '.toolchain.compatible' "${output_root}/doctor.json")" != "true" ]]; then
@@ -66,7 +85,7 @@ fi
 set +e
 result="$("${python_bin}" -m solana_agent --repo-root "${repo_root}" missions start create-counter \
   --contract "${contract}" --state-root "${state_root}" --run-id run-live-devnet-proof \
-  --input "workspace=${workspace}" --input project_name=counter-proof --input airdrop_amount=2 2>&1)"
+  --input "workspace=${workspace}" --input project_name=counter-proof 2>&1)"
 exit_code=$?
 set -e
 printf '%s\n' "${result}" | tee -a "${transcript}"
@@ -98,6 +117,9 @@ for attempt in $(seq 1 16); do
   set -e
   printf '%s\n' "${result}" | tee -a "${transcript}"
   if [[ ${attempt} -eq 16 ]]; then
+    "${python_bin}" -m solana_agent --repo-root "${repo_root}" commands list "${run_id}" \
+      --contract "${contract}" --state-root "${state_root}" --failed-only --include-output \
+      | tee "${output_root}/failed-commands.json" >&2
     echo "mission did not complete after ${attempt} resume cycles (last exit ${exit_code})" >&2
     exit 1
   fi
@@ -161,4 +183,5 @@ jq -n \
   echo "INDEPENDENT_VERIFICATION=completed"
 } | tee -a "${transcript}"
 
-# The ephemeral signer is intentionally destroyed with /tmp when the container exits.
+# The restored signer is destroyed with /tmp when the container exits. Its source
+# remains encrypted as a GitHub Actions secret and is never included in artifacts.

@@ -9,6 +9,7 @@ ARG ANCHOR_VERSION=v1.1.2
 ARG NODE_VERSION=v22.22.3
 ARG NODE_SHA256=2e5d13569282d016861fae7c8f935e741693c269101a5bebcf761a5376d1f99f
 ARG PNPM_VERSION=10.28.0
+ARG DEVNET_POW_VERSION=0.1.4
 
 ENV HOME=/root
 ENV CARGO_HOME=/opt/cargo
@@ -59,6 +60,11 @@ RUN cargo install \
         anchor-cli \
         --locked \
     && anchor --version
+
+# Solana's official faucet guide documents this maintained proof-of-work
+# fallback for periods when public RPC airdrops are rate limited.
+RUN cargo install devnet-pow --version "${DEVNET_POW_VERSION}" --locked \
+    && devnet-pow --version
 
 COPY toolchain.lock.json /opt/solana-agent/toolchain.lock.json
 COPY environment/verify-toolchain.py /opt/solana-agent/verify-toolchain.py

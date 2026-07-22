@@ -76,10 +76,13 @@ jobs:
         run: install -d -m 0777 .live-proof
       - name: Run governed live devnet proof
         if: github.event_name == 'pull_request' && github.head_ref == 'agent/devnet-e2e'
+        env:
+          SOLANA_DEVNET_KEYPAIR: ${{ secrets.SOLANA_DEVNET_KEYPAIR }}
+          SOLANA_DEVNET_WALLET: F1K3nPb4JcZ7nd6yEpWtspbCoiJzo1bL7tnUNF6SfHcp
         run: >-
           docker run --rm --volume "${{ github.workspace }}:/workspace"
           --cap-drop ALL --security-opt no-new-privileges --security-opt seccomp=unconfined
-          --env HOME=/tmp
+          --env HOME=/tmp --env SOLANA_DEVNET_KEYPAIR --env SOLANA_DEVNET_WALLET
           solana-agent-toolchain bash -lc
           "mkdir -p /tmp/solana-agent-source &&
           cp -r solana_agent missions templates pyproject.toml README.md LICENSE toolchain.lock.json

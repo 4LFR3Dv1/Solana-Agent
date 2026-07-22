@@ -46,6 +46,11 @@
       "version": "10.28.0",
       "command": ["pnpm", "--version"],
       "version_pattern": "10.28.0"
+    },
+    "devnet-pow": {
+      "version": "0.1.4",
+      "command": ["devnet-pow", "--version"],
+      "version_pattern": "devnet-pow 0.1.4"
     }
   }
 }
