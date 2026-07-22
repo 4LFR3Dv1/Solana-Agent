@@ -1,5 +1,7 @@
 import * as anchor from "@coral-xyz/anchor";
-const idl = require("../target/idl/__PROGRAM_SNAKE__.json") as anchor.Idl;
+import { readFileSync } from "node:fs";
+
+const idl = JSON.parse(readFileSync("target/idl/__PROGRAM_SNAKE__.json", "utf8")) as anchor.Idl;
 
 async function main() {
   const provider = anchor.AnchorProvider.env();
