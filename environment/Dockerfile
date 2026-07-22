@@ -9,8 +9,6 @@ ARG ANCHOR_VERSION=v1.1.2
 ARG NODE_VERSION=v22.22.3
 ARG NODE_SHA256=2e5d13569282d016861fae7c8f935e741693c269101a5bebcf761a5376d1f99f
 ARG PNPM_VERSION=10.28.0
-ARG DEVNET_POW_VERSION=0.1.4
-ARG DEVNET_POW_REV=1efbcbf87497ed6d75a9bda373766ab11c5b4501
 
 ENV HOME=/root
 ENV CARGO_HOME=/opt/cargo
@@ -61,19 +59,6 @@ RUN cargo install \
         anchor-cli \
         --locked \
     && anchor --version
-
-# Solana's official faucet guide documents this maintained proof-of-work
-# fallback for periods when public RPC airdrops are rate limited. Its published
-# lock predates modern Rust's wasm-bindgen compatibility floor, so update only
-# that dependency while keeping the faucet source revision immutable.
-RUN git clone https://github.com/jarry-xiao/proof-of-work-faucet.git /tmp/devnet-pow \
-    && cd /tmp/devnet-pow \
-    && git checkout --detach "${DEVNET_POW_REV}" \
-    && cargo update -p wasm-bindgen --precise 0.2.88 \
-    && cargo update -p time --precise 0.3.36 \
-    && cargo install --path cli --locked \
-    && rm -rf /tmp/devnet-pow \
-    && devnet-pow --version | grep -F "devnet-pow ${DEVNET_POW_VERSION}"
 
 COPY toolchain.lock.json /opt/solana-agent/toolchain.lock.json
 COPY environment/verify-toolchain.py /opt/solana-agent/verify-toolchain.py

@@ -26,7 +26,6 @@ find "${output_root}" -mindepth 1 -depth -delete
 command -v solana >/dev/null
 command -v anchor >/dev/null
 command -v pnpm >/dev/null
-command -v devnet-pow >/dev/null
 "${python_bin}" "${repo_root}/scripts/solana/restore_devnet_keypair.py" "${wallet_path}" >/dev/null
 wallet="$(solana address --keypair "${wallet_path}")"
 solana config set --url devnet --keypair "${wallet_path}" >/dev/null
@@ -61,12 +60,6 @@ if ! [[ "${balance_lamports}" =~ ^[0-9]+$ ]]; then
   exit 1
 fi
 echo "BALANCE_BEFORE_LAMPORTS=${balance_lamports}" | tee -a "${transcript}"
-if (( balance_lamports < 2000000000 )); then
-  echo "FUNDING_METHOD=devnet-pow TARGET_LAMPORTS=2000000000" | tee -a "${transcript}"
-  timeout 900 devnet-pow --keypair-path "${wallet_path}" --url dev \
-    mine --target-lamports 2000000000 2>&1 | tee -a "${transcript}"
-fi
-balance_lamports="$(solana balance "${wallet}" --url devnet --lamports | awk '{print $1}')"
 echo "BALANCE_READY_LAMPORTS=${balance_lamports}" | tee -a "${transcript}"
 if ! [[ "${balance_lamports}" =~ ^[0-9]+$ ]] || (( balance_lamports < 2000000000 )); then
   echo "Persistent wallet did not reach the required 2000000000 lamports" | tee -a "${transcript}" >&2

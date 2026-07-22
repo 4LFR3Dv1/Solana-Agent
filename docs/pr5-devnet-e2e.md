@@ -14,11 +14,10 @@ doctor → anchor scaffold → apply counter template → install → build → 
        → verify RPC      → evidence.json
 ```
 
-The CI proof restores a dedicated signer from a masked GitHub Actions secret.
-When its reusable balance is below 2 SOL, the proof bootstraps it through the
-version-pinned `devnet-pow` faucet documented by Solana, then the mission checks
-that minimum balance before allowing deployment. The private key is written
-only inside the ephemeral container and is never uploaded as an artifact.
+The CI proof restores a dedicated, pre-funded signer from a masked GitHub
+Actions secret. The mission checks a reusable minimum balance of 2 SOL before
+allowing deployment. The private key is written only inside the ephemeral
+container and is never uploaded as an artifact.
 
 The mission pauses independently at every material operation. An approval is
 bound to the exact command and policy input hash, expires, is single-use, and is
