@@ -56,7 +56,8 @@ jobs:
           /tmp/solana-agent-source/ &&
           python3 -m venv /tmp/integration-venv &&
           /tmp/integration-venv/bin/pip install -e '/tmp/solana-agent-source[dev]' &&
-          /tmp/integration-venv/bin/pytest /workspace/tests/test_local_validator_integration.py"
+          /tmp/integration-venv/bin/pytest --basetemp=/tmp/validator-pytest
+          -o cache_dir=/tmp/validator-cache /workspace/tests/test_local_validator_integration.py"
       - name: Build and test generated counter
         run: >-
           docker run --rm --volume "${{ github.workspace }}:/workspace"
@@ -68,7 +69,8 @@ jobs:
           /tmp/solana-agent-source/ &&
           python3 -m venv /tmp/counter-venv &&
           /tmp/counter-venv/bin/pip install -e '/tmp/solana-agent-source[dev]' solders==0.28.0 &&
-          /tmp/counter-venv/bin/pytest /workspace/tests/test_counter_toolchain_integration.py"
+          /tmp/counter-venv/bin/pytest --basetemp=/tmp/counter-pytest
+          -o cache_dir=/tmp/counter-cache /workspace/tests/test_counter_toolchain_integration.py"
       - name: Run governed live devnet proof
         if: github.event_name == 'pull_request' && github.head_ref == 'agent/devnet-e2e'
         run: >-
