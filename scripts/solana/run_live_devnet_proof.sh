@@ -12,15 +12,12 @@ transcript="${output_root}/execution-transcript.txt"
 python_bin="${PYTHON_BIN:-python3}"
 export PATH="/root/.local/share/solana/install/active_release/bin:/opt/cargo/bin:/opt/node/bin:/opt/pnpm:${PATH}"
 
-restore_output_owner() {
-  if [[ "$(id -u)" == "0" && -n "${HOST_UID:-}" && -n "${HOST_GID:-}" && -d "${output_root}" ]]; then
-    chown -R "${HOST_UID}:${HOST_GID}" "${output_root}"
-  fi
-}
-trap restore_output_owner EXIT
-
-rm -rf "${runtime_root}" "${output_root}"
+rm -rf "${runtime_root}"
 mkdir -p "$(dirname "${wallet_path}")" "${runtime_root}/workspaces" "${output_root}"
+# The mounted output directory is intentionally writable while its parent is
+# read-only to this capability-free container. Preserve the mount point and
+# remove only content from a previous attempt.
+find "${output_root}" -mindepth 1 -depth -delete
 command -v solana >/dev/null
 command -v anchor >/dev/null
 command -v pnpm >/dev/null

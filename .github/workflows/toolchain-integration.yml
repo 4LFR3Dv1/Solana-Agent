@@ -79,7 +79,7 @@ jobs:
         run: >-
           docker run --rm --volume "${{ github.workspace }}:/workspace"
           --cap-drop ALL --security-opt no-new-privileges --security-opt seccomp=unconfined
-          --env HOME=/tmp --env HOST_UID="$(id -u)" --env HOST_GID="$(id -g)"
+          --env HOME=/tmp
           solana-agent-toolchain bash -lc
           "mkdir -p /tmp/solana-agent-source &&
           cp -r solana_agent missions templates pyproject.toml README.md LICENSE toolchain.lock.json
