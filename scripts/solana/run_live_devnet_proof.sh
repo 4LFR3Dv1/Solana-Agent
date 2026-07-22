@@ -10,9 +10,13 @@ contract="${runtime_root}/runtime.devnet.json"
 wallet_path="${HOME}/.config/solana/id.json"
 transcript="${output_root}/execution-transcript.txt"
 python_bin="${PYTHON_BIN:-python3}"
+export PATH="/root/.local/share/solana/install/active_release/bin:/opt/cargo/bin:/opt/node/bin:/opt/pnpm:${PATH}"
 
 rm -rf "${runtime_root}" "${output_root}"
 mkdir -p "$(dirname "${wallet_path}")" "${runtime_root}/workspaces" "${output_root}"
+command -v solana >/dev/null
+command -v anchor >/dev/null
+command -v pnpm >/dev/null
 "${python_bin}" "${repo_root}/scripts/solana/create_ephemeral_keypair.py" "${wallet_path}" >/dev/null
 wallet="$(solana address --keypair "${wallet_path}")"
 solana config set --url devnet --keypair "${wallet_path}" >/dev/null
