@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="${1:-/workspace}"
+output_root="${2:-${repo_root}/.live-proof}"
+runtime_root="/tmp/solana-agent-live"
+workspace="${runtime_root}/workspaces/counter-proof"
+state_root="${runtime_root}/state"
+contract="${runtime_root}/runtime.devnet.json"
+wallet_path="${HOME}/.config/solana/id.json"
+transcript="${output_root}/execution-transcript.txt"
+python_bin="${PYTHON_BIN:-python3}"
+pinned_bin="/tmp/solana-agent-pinned-bin"
+export PATH="${pinned_bin}:/root/.local/share/solana/install/active_release/bin:/opt/cargo/bin:/opt/node/bin:${PATH}"
+
+rm -rf "${runtime_root}"
+mkdir -p "$(dirname "${wallet_path}")" "${runtime_root}/workspaces" "${output_root}" "${pinned_bin}"
+# Corepack may select a workspace-specific package manager version. Force the
+# version from toolchain.lock.json for both the doctor and mission adapters.
+printf '#!/usr/bin/env bash\nexec /opt/node/bin/corepack pnpm@10.28.0 "$@"\n' >"${pinned_bin}/pnpm"
+chmod 0755 "${pinned_bin}/pnpm"
+# The mounted output directory is intentionally writable while its parent is
+# read-only to this capability-free container. Preserve the mount point and
+# remove only content from a previous attempt.
+find "${output_root}" -mindepth 1 -depth -delete
+command -v solana >/dev/null
+command -v anchor >/dev/null
+command -v pnpm >/dev/null
+"${python_bin}" "${repo_root}/scripts/solana/restore_devnet_keypair.py" "${wallet_path}" >/dev/null
+wallet="$(solana address --keypair "${wallet_path}")"
+solana config set --url devnet --keypair "${wallet_path}" >/dev/null
+export ANCHOR_PROVIDER_URL="https://api.devnet.solana.com"
+export ANCHOR_WALLET="${wallet_path}"
+
+jq -n \
+  --arg wallet "${wallet}" \
+  --arg workspace_root "${runtime_root}/workspaces" \
+  '{
+    id: "github-actions-live-devnet-proof",
+    version: "1.0.0",
+    policy_profile: "devnet-safe",
+    workspace_root: $workspace_root,
+    cluster: "devnet",
+    wallet: $wallet,
+    max_lamports: 2000000000,
+    tool_versions: {solana: "4.1.2", anchor: "1.1.2", pnpm: "10.28.0"}
+  }' >"${contract}"
+
+cd "${repo_root}"
+{
+  echo "Solana Agent Runtime — governed live devnet proof"
+  echo "UTC_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  echo "CLUSTER=devnet"
+  echo "WALLET=${wallet}"
+} | tee "${transcript}"
+
+balance_lamports="$(solana balance "${wallet}" --url devnet --lamports | awk '{print $1}')"
+if ! [[ "${balance_lamports}" =~ ^[0-9]+$ ]]; then
+  echo "Unable to parse devnet balance: ${balance_lamports}" | tee -a "${transcript}" >&2
+  exit 1
+fi
+echo "BALANCE_BEFORE_LAMPORTS=${balance_lamports}" | tee -a "${transcript}"
+echo "BALANCE_READY_LAMPORTS=${balance_lamports}" | tee -a "${transcript}"
+if ! [[ "${balance_lamports}" =~ ^[0-9]+$ ]] || (( balance_lamports < 2000000000 )); then
+  echo "Persistent wallet did not reach the required 2000000000 lamports" | tee -a "${transcript}" >&2
+  exit 1
+fi
+
+"${python_bin}" -m solana_agent --repo-root "${repo_root}" doctor >"${output_root}/doctor.json"
+cat "${output_root}/doctor.json" | tee -a "${transcript}"
+if [[ "$(jq -r '.toolchain.compatible' "${output_root}/doctor.json")" != "true" ]]; then
+  echo "Pinned toolchain doctor rejected the live environment:" | tee -a "${transcript}" >&2
+  jq -r '.toolchain.tools[] | select(.compatible == false) | "- \(.name): \(.output) (expected \(.expected_version))"' \
+    "${output_root}/doctor.json" | tee -a "${transcript}" >&2
+  exit 1
+fi
+
+set +e
+result="$("${python_bin}" -m solana_agent --repo-root "${repo_root}" missions start create-counter \
+  --contract "${contract}" --state-root "${state_root}" --run-id run-live-devnet-proof \
+  --input "workspace=${workspace}" --input project_name=counter-proof 2>&1)"
+exit_code=$?
+set -e
+printf '%s\n' "${result}" | tee -a "${transcript}"
+run_id="$(printf '%s' "${result}" | jq -r '.run_id // empty' 2>/dev/null || true)"
+if [[ -z "${run_id}" ]]; then
+  echo "mission did not return a run id (exit ${exit_code})" >&2
+  exit 1
+fi
+
+for attempt in $(seq 1 16); do
+  status="$(printf '%s' "${result}" | jq -r '.status // "unknown"' 2>/dev/null || true)"
+  echo "MISSION_STATUS=${status} LOOP=${attempt}" | tee -a "${transcript}"
+  if [[ "${status}" == "completed" ]]; then
+    break
+  fi
+  if [[ "${status}" == "failed" ]]; then
+    "${python_bin}" -m solana_agent --repo-root "${repo_root}" commands list "${run_id}" \
+      --contract "${contract}" --state-root "${state_root}" --failed-only --include-output \
+      | tee "${output_root}/failed-commands.json" >&2
+    echo "mission reached a terminal failure (last exit ${exit_code})" >&2
+    exit 1
+  fi
+  approvals="$("${python_bin}" -m solana_agent --repo-root "${repo_root}" approvals list "${run_id}" \
+    --contract "${contract}" --state-root "${state_root}")"
+  approval_id="$(printf '%s' "${approvals}" | jq -r '[.approvals[] | select(.status == "pending")] | last | .id // empty')"
+  if [[ -n "${approval_id}" ]]; then
+    echo "APPROVING=${approval_id}" | tee -a "${transcript}"
+    "${python_bin}" -m solana_agent --repo-root "${repo_root}" approvals approve "${approval_id}" \
+      --by github-actions-live-proof --note "User-authorized PR5 devnet proof" \
+      --contract "${contract}" --state-root "${state_root}" | tee -a "${transcript}"
+  fi
+  set +e
+  result="$("${python_bin}" -m solana_agent --repo-root "${repo_root}" missions resume "${run_id}" \
+    --contract "${contract}" --state-root "${state_root}" 2>&1)"
+  exit_code=$?
+  set -e
+  printf '%s\n' "${result}" | tee -a "${transcript}"
+  if [[ ${attempt} -eq 16 ]]; then
+    "${python_bin}" -m solana_agent --repo-root "${repo_root}" commands list "${run_id}" \
+      --contract "${contract}" --state-root "${state_root}" --failed-only --include-output \
+      | tee "${output_root}/failed-commands.json" >&2
+    echo "mission did not complete after ${attempt} resume cycles (last exit ${exit_code})" >&2
+    exit 1
+  fi
+done
+
+evidence="${workspace}/.solana-agent/evidence/${run_id}/evidence.json"
+test -s "${evidence}"
+cp "${evidence}" "${output_root}/evidence.json"
+evidence_sha256="$(sha256sum "${evidence}" | awk '{print $1}')"
+
+program_id="$(jq -r '.verification.program_id' "${evidence}")"
+counter_pubkey="$(jq -r '.verification.counter_pubkey' "${evidence}")"
+deploy_signature="$(jq -r '.verification.deploy_signature' "${evidence}")"
+initialize_signature="$(jq -r '.verification.initialize_signature' "${evidence}")"
+increment_signature="$(jq -r '.verification.increment_signature' "${evidence}")"
+
+"${python_bin}" -m solana_agent --repo-root "${repo_root}" missions start verify-devnet-deploy \
+  --contract "${contract}" --state-root "${runtime_root}/verify-state" --run-id run-independent-verification \
+  --input "program_id=${program_id}" --input "counter_pubkey=${counter_pubkey}" \
+  --input "deploy_signature=${deploy_signature}" --input "initialize_signature=${initialize_signature}" \
+  --input "increment_signature=${increment_signature}" --input expected_count=1 \
+  | tee "${output_root}/independent-verification.json"
+
+jq -n \
+  --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --arg wallet "${wallet}" \
+  --arg program_id "${program_id}" \
+  --arg counter_pubkey "${counter_pubkey}" \
+  --arg deploy_signature "${deploy_signature}" \
+  --arg initialize_signature "${initialize_signature}" \
+  --arg increment_signature "${increment_signature}" \
+  --arg evidence_sha256 "${evidence_sha256}" \
+  '{
+    schema: "solana-agent-public-proof/1.0.0",
+    generated_at: $generated_at,
+    cluster: "devnet",
+    wallet: $wallet,
+    program_id: $program_id,
+    counter_pubkey: $counter_pubkey,
+    deploy_signature: $deploy_signature,
+    initialize_signature: $initialize_signature,
+    increment_signature: $increment_signature,
+    expected_count: 1,
+    evidence_sha256: $evidence_sha256,
+    explorer: {
+      program: ("https://explorer.solana.com/address/" + $program_id + "?cluster=devnet"),
+      deploy: ("https://explorer.solana.com/tx/" + $deploy_signature + "?cluster=devnet"),
+      initialize: ("https://explorer.solana.com/tx/" + $initialize_signature + "?cluster=devnet"),
+      increment: ("https://explorer.solana.com/tx/" + $increment_signature + "?cluster=devnet")
+    }
+  }' >"${output_root}/public-summary.json"
+
+{
+  echo "UTC_END=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  echo "PROGRAM_ID=${program_id}"
+  echo "COUNTER_PUBKEY=${counter_pubkey}"
+  echo "DEPLOY_SIGNATURE=${deploy_signature}"
+  echo "INITIALIZE_SIGNATURE=${initialize_signature}"
+  echo "INCREMENT_SIGNATURE=${increment_signature}"
+  echo "EVIDENCE_SHA256=${evidence_sha256}"
+  echo "INDEPENDENT_VERIFICATION=completed"
+} | tee -a "${transcript}"
+
+# The restored signer is destroyed with /tmp when the container exits. Its source
+# remains encrypted as a GitHub Actions secret and is never included in artifacts.

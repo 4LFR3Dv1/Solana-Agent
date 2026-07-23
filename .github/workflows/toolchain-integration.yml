@@ -7,7 +7,10 @@ on:
       - ".github/workflows/toolchain-integration.yml"
       - "environment/**"
       - "solana_agent/adapters/**"
+      - "templates/anchor-counter/**"
+      - "scripts/solana/**"
       - "tests/fixtures/anchor-workspace/**"
+      - "tests/test_counter_toolchain_integration.py"
       - "tests/test_local_validator_integration.py"
       - "toolchain.lock.json"
 
@@ -20,8 +23,19 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
       - name: Build pinned development image
-        run: docker build --file environment/Dockerfile --tag solana-agent-toolchain .
+        uses: docker/build-push-action@v6
+        timeout-minutes: 25
+        with:
+          context: .
+          file: environment/Dockerfile
+          load: true
+          tags: solana-agent-toolchain:latest
+          cache-from: type=gha,scope=solana-agent-toolchain
+          cache-to: type=gha,mode=max,scope=solana-agent-toolchain
+          provenance: false
       - name: Verify every pinned tool
         run: >-
           docker run --rm solana-agent-toolchain
@@ -35,8 +49,62 @@ jobs:
         run: >-
           docker run --rm --volume "${{ github.workspace }}:/workspace"
           --cap-drop ALL --security-opt no-new-privileges --security-opt seccomp=unconfined
-          --user "$(id -u):$(id -g)" --env HOME=/tmp
-          --env SOLANA_AGENT_RUN_INTEGRATION=1 solana-agent-toolchain bash -lc
-          "python3 -m venv /tmp/integration-venv &&
-          /tmp/integration-venv/bin/pip install -e '.[dev]' &&
-          /tmp/integration-venv/bin/pytest tests/test_local_validator_integration.py"
+          --env HOME=/tmp --env SOLANA_AGENT_RUN_INTEGRATION=1
+          solana-agent-toolchain bash -lc
+          "mkdir -p /tmp/solana-agent-source &&
+          cp -r solana_agent missions templates pyproject.toml README.md LICENSE toolchain.lock.json
+          /tmp/solana-agent-source/ &&
+          python3 -m venv /tmp/integration-venv &&
+          /tmp/integration-venv/bin/pip install -e '/tmp/solana-agent-source[dev]' &&
+          /tmp/integration-venv/bin/pytest --basetemp=/tmp/validator-pytest
+          -o cache_dir=/tmp/validator-cache /workspace/tests/test_local_validator_integration.py"
+      - name: Build and test generated counter
+        run: >-
+          docker run --rm --volume "${{ github.workspace }}:/workspace"
+          --cap-drop ALL --security-opt no-new-privileges --security-opt seccomp=unconfined
+          --env HOME=/tmp --env SOLANA_AGENT_RUN_INTEGRATION=1
+          solana-agent-toolchain bash -lc
+          "mkdir -p /tmp/solana-agent-source &&
+          cp -r solana_agent missions templates pyproject.toml README.md LICENSE toolchain.lock.json
+          /tmp/solana-agent-source/ &&
+          python3 -m venv /tmp/counter-venv &&
+          /tmp/counter-venv/bin/pip install -e '/tmp/solana-agent-source[dev]' solders==0.28.0 &&
+          /tmp/counter-venv/bin/pytest --basetemp=/tmp/counter-pytest
+          -o cache_dir=/tmp/counter-cache /workspace/tests/test_counter_toolchain_integration.py"
+      - name: Prepare isolated live proof output
+        if: github.event_name == 'pull_request' && github.head_ref == 'agent/devnet-e2e'
+        run: install -d -m 0777 .live-proof
+      - name: Run governed live devnet proof
+        if: github.event_name == 'pull_request' && github.head_ref == 'agent/devnet-e2e'
+        run: >-
+          docker run --rm --volume "${{ github.workspace }}:/workspace"
+          --cap-drop ALL --security-opt no-new-privileges --security-opt seccomp=unconfined
+          --env HOME=/tmp
+          solana-agent-toolchain bash -lc
+          "mkdir -p /tmp/solana-agent-source &&
+          cp -r solana_agent missions templates pyproject.toml README.md LICENSE toolchain.lock.json
+          /tmp/solana-agent-source/ &&
+          python3 -m venv /tmp/live-proof-venv &&
+          /tmp/live-proof-venv/bin/pip install -e /tmp/solana-agent-source solders==0.28.0 &&
+          PYTHON_BIN=/tmp/live-proof-venv/bin/python bash scripts/solana/recover_devnet_proof.sh
+          /workspace /workspace/.live-proof
+          7SzoAtRc9yoBgGfNSQ8uSdtRLxRMPXYR9YWVfcDafJwn
+          AtJPPQLBoa2FY5FNZTycFfRfCHShKax5QJKDGYJxB5Rt
+          4xiKWhcUNv7zSBnbQi41zf14UyVM15kAZiAouq18GDoV12s67iRbkgZdsbn9K2rVjwvk4nFxnxCv5YZgcQSQ1i5J
+          5wj4wn5P6cAckecENCKVFWJ55Hc5ox4bdP2haAR6cXSRbPwBuE9ntbAKgKNjzjgYq6zsxtJsiYQ7BTabm9KsaHw7
+          4gjwNapmrXwn7rD7GhGaz3awC8fzK6S3YeQro6b2W37wNZWq2mNZMBTohCqNBZwSQP8f2KF6GT8z1vpgYAzgXvvL"
+      - name: Render short proof video
+        if: github.event_name == 'pull_request' && github.head_ref == 'agent/devnet-e2e'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ffmpeg
+          bash scripts/solana/render_proof_video.sh .live-proof/public-summary.json
+      - name: Upload sanitized live proof
+        if: always() && github.event_name == 'pull_request' && github.head_ref == 'agent/devnet-e2e'
+        uses: actions/upload-artifact@v4
+        with:
+          name: solana-agent-live-devnet-proof
+          path: .live-proof/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 30

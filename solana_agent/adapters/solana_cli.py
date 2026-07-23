@@ -10,6 +10,7 @@ from solana_agent.execution import ExecutionRequest, ExecutionResult
 from .process import ProcessRunner
 
 PUBLIC_KEY = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
+LAMPORT_BALANCE = re.compile(r"^([0-9]+)\s+lamports?\s*$")
 CLUSTER_URLS = {
     "devnet": "https://api.devnet.solana.com",
     "localnet": "http://127.0.0.1:8899",
@@ -32,6 +33,8 @@ class SolanaCliAdapter:
         self.default_cluster = default_cluster
 
     def execute(self, request: ExecutionRequest) -> ExecutionResult:
+        if request.operation == "require_balance":
+            return self._require_balance(request)
         handlers = {
             "airdrop": self._airdrop,
             "address": self._address,
@@ -54,6 +57,59 @@ class SolanaCliAdapter:
             stdout=result.stdout,
             stderr=result.stderr,
             metadata={**result.metadata, "adapter": "solana", "operation": request.operation},
+        )
+
+    def _require_balance(self, request: ExecutionRequest) -> ExecutionResult:
+        raw_minimum = request.arguments.get("minimum_lamports")
+        if isinstance(raw_minimum, bool) or not isinstance(raw_minimum, (int, str)):
+            raise ValueError("minimum_lamports must be a positive integer")
+        try:
+            minimum = int(raw_minimum)
+        except ValueError as exc:
+            raise ValueError("minimum_lamports must be a positive integer") from exc
+        if minimum <= 0:
+            raise ValueError("minimum_lamports must be a positive integer")
+        argv = [self.executable, "balance"]
+        wallet = request.arguments.get("wallet")
+        if wallet is not None:
+            argv.append(self._public_key(wallet, "wallet"))
+        argv.extend(["--url", self._cluster_url(request.arguments), "--lamports"])
+        result = self.runner.run(argv, cwd=Path(request.cwd).resolve(), timeout_seconds=request.timeout_seconds)
+        if result.exit_code != 0:
+            return result
+        match = LAMPORT_BALANCE.fullmatch(result.stdout.strip())
+        if match is None:
+            return ExecutionResult(
+                exit_code=1,
+                stdout=result.stdout,
+                stderr="unable to parse Solana CLI lamport balance",
+                metadata={**result.metadata, "adapter": "solana", "operation": request.operation},
+            )
+        actual = int(match.group(1))
+        if actual < minimum:
+            return ExecutionResult(
+                exit_code=1,
+                stdout=result.stdout,
+                stderr=f"wallet balance {actual} is below required minimum {minimum} lamports",
+                metadata={
+                    **result.metadata,
+                    "adapter": "solana",
+                    "operation": request.operation,
+                    "balance_lamports": actual,
+                    "minimum_lamports": minimum,
+                },
+            )
+        return ExecutionResult(
+            exit_code=0,
+            stdout=result.stdout,
+            stderr=result.stderr,
+            metadata={
+                **result.metadata,
+                "adapter": "solana",
+                "operation": request.operation,
+                "balance_lamports": actual,
+                "minimum_lamports": minimum,
+            },
         )
 
     def _airdrop(self, arguments: dict[str, Any]) -> list[str]:

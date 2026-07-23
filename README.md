@@ -17,7 +17,7 @@ This repository currently defines:
 - Solana/Anchor skills in `skills/`
 - mission flows in `missions/`
 - structured schemas in `contracts/`
-- production adapters for filesystem, Anchor, pnpm, Solana CLI, and JSON-RPC
+- production adapters for filesystem, Anchor, pnpm, Solana CLI, JSON-RPC, counter templates, and evidence
 - a digest-pinned Linux toolchain in `environment/` and `toolchain.lock.json`
 - local runtime state in `.solana-agent/`
 - a transactional command journal in `solana_agent/execution/`
@@ -89,9 +89,24 @@ Host preflight on Windows reports WSL readiness and installed host tools. `inspe
 python -m solana_agent inspect-env
 ```
 
-Run the legacy MVP mission compatibility path. The production adapter registry
-is connected to the declarative engine through `build_governed_runtime()`;
-the compatibility CLI below remains available until the governed CLI lands:
+Run the governed declarative mission. Material operations pause for a bound,
+single-use approval and resume without repeating successful steps:
+
+```bash
+solana-agent missions start create-counter \
+  --contract runtime.devnet.json \
+  --input workspace=/workspace/proofs/counter \
+  --input project_name=counter
+
+solana-agent approvals list RUN_ID --contract runtime.devnet.json
+solana-agent approvals approve APPROVAL_ID --by operator --contract runtime.devnet.json
+solana-agent missions resume RUN_ID --contract runtime.devnet.json
+```
+
+The complete procedure and independent verification command are documented in
+[PR5 — Devnet end-to-end proof](docs/pr5-devnet-e2e.md).
+
+The legacy MVP compatibility path remains available:
 
 ```bash
 python -m solana_agent run create-counter \
@@ -149,9 +164,10 @@ Runtime artifacts are stored in `.solana-agent/`, which is local-only and ignore
 
 The governed core now contains executable contracts, a transactional SQLite
 journal, versioned policy profiles, bound single-use approvals, a declarative
-mission DAG, production execution adapters, and a pinned Linux toolchain. The
-older hardcoded runner remains available for compatibility. The next priority
-is the first complete mission template and a locally validated Anchor flow.
+mission DAG, a real counter template, RPC-backed evidence export, production
+execution adapters, and a pinned Linux toolchain. The older hardcoded runner
+remains available for compatibility. A public devnet proof is still required
+before the end-to-end milestone can be declared complete.
 
 ## License and provenance
 

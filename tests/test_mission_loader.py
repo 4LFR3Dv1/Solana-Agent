@@ -43,14 +43,19 @@ def test_create_counter_has_a_valid_dependency_order() -> None:
     assert [step.id for step in topological_steps(mission)] == [
         "inspect-environment",
         "scaffold",
+        "apply-counter-template",
         "install-dependencies",
         "build",
         "test",
-        "airdrop",
+        "funding-check",
         "deploy",
         "invoke",
         "evidence",
     ]
+    timeouts = {step.id: step.timeout_seconds for step in mission.steps}
+    assert timeouts["build"] == 300
+    assert timeouts["test"] == 300
+    assert timeouts["deploy"] == 600
 
 
 def test_json_mission_is_supported_without_code_changes(tmp_path: Path) -> None:

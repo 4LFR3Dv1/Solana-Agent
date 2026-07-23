@@ -1,5 +1,7 @@
 import * as anchor from "@coral-xyz/anchor";
-import idl from "../target/idl/__PROGRAM_SNAKE__.json";
+import { readFileSync } from "node:fs";
+
+const idl = JSON.parse(readFileSync("target/idl/__PROGRAM_SNAKE__.json", "utf8")) as anchor.Idl;
 
 async function main() {
   const provider = anchor.AnchorProvider.env();
@@ -28,6 +30,7 @@ async function main() {
 
   const counterAccount = await program.account.counter.fetch(counter.publicKey);
 
+  console.log(`PROGRAM_ID=${program.programId.toBase58()}`);
   console.log(`COUNTER_PUBKEY=${counter.publicKey.toBase58()}`);
   console.log(`INITIALIZE_SIGNATURE=${initializeSignature}`);
   console.log(`INCREMENT_SIGNATURE=${incrementSignature}`);

@@ -1,8 +1,8 @@
 # Solana Agent Runtime — Plano de Desenvolvimento
 
-Status: `canonical-draft`  
-Versão: `0.1`  
-Data: `2026-07-20`
+Status: `canonical-active`  
+Versão: `0.5`  
+Data: `2026-07-23`
 
 ## 1. Objetivo
 
@@ -20,9 +20,11 @@ O runtime deve complementar, e não substituir:
 - Solana CLI, RPCs e validadores locais;
 - ferramentas de análise e autofix de programas.
 
-## 2. Estado inicial
+## 2. Estado do projeto
 
-O repositório atual já possui:
+### 2.1 Baseline inicial
+
+O protótipo que originou este plano possuía:
 
 - CLI Python;
 - uma missão `create-counter` hardcoded;
@@ -34,7 +36,7 @@ O repositório atual já possui:
 - regras documentais de segurança;
 - documentação de arquitetura e lifecycle.
 
-O estado atual ainda não comprova:
+Naquele baseline, o projeto ainda não comprovava:
 
 - uma missão concluída ponta a ponta;
 - deploy e invoke verificáveis no devnet;
@@ -46,7 +48,37 @@ O estado atual ainda não comprova:
 - redaction testada;
 - utilidade para desenvolvedores externos.
 
-As seis runs locais registradas terminaram em falha. Por isso, a prioridade inicial é corrigir o runtime e sua observabilidade antes de reinstalar a toolchain e repetir a missão.
+As seis runs locais registradas no baseline terminaram em falha. Esse registro é histórico e não representa mais o estado atual do projeto.
+
+### 2.2 Baseline comprovado após a Fase 5
+
+Em `2026-07-23`, o runtime completou uma execução pública ponta a ponta na Solana devnet e publicou prova reproduzível:
+
+- missão `create-counter` versionada e executada pelo motor declarativo;
+- journal completo, policy engine e aprovações vinculadas;
+- ambiente reproduzível com toolchain pinada;
+- Program ID `7SzoAtRc9yoBgGfNSQ8uSdtRLxRMPXYR9YWVfcDafJwn`;
+- deploy, initialize e increment confirmados;
+- counter `AtJPPQLBoa2FY5FNZTycFfRfCHShKax5QJKDGYJxB5Rt` observado com valor `1`;
+- verificação independente por RPC;
+- evidence bundle com SHA-256 `1d3c2d8fd754d644cfe7a26273fd2b4a98366ef5b43f0a5fa42f4549d7ad2115`;
+- workflow reproduzível e vídeo público de 12 segundos;
+- suíte local com 115 testes aprovados e dois testes de integração executados no container pinado.
+
+Prova pública: <https://github.com/4LFR3Dv1/Solana-Agent/releases/tag/devnet-proof-v0.1.0>
+
+### 2.3 Status das fases
+
+| Fase | Status | Evidência ou próximo objetivo |
+| --- | --- | --- |
+| 0 — Baseline público | Concluída | Repositório, licença, CI e contratos públicos |
+| 1 — Journal confiável | Concluída | Estados terminais, outputs e retomada persistidos |
+| 2 — Policy e aprovações | Concluída | Decisões auditáveis e aprovações vinculadas |
+| 3 — Motor declarativo | Concluída | Mission pack versionado, DAG e resume |
+| 4 — Ambiente e adapters | Concluída | Toolchain pinada, Anchor, Solana, RPC, filesystem e validator |
+| 5 — Devnet ponta a ponta | Concluída | Program ID, três transações, estado `1`, evidence hash e vídeo |
+| 6 — Integrações com agentes | Escopo proposto do grant | Integração model-agnostic, Solana MCP e projetos externos |
+| 7 — Benchmark e adoção | Escopo proposto do grant | 8–12 tarefas, pilotos externos, métricas e manutenção |
 
 ## 3. Tese do produto
 

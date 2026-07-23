@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from solana_agent.adapters import LocalValidator
 
 
@@ -15,3 +17,8 @@ def test_validator_startup_diagnostics_include_streams_and_bounded_log(tmp_path:
     assert "stdout=status output" in diagnostics
     assert "stderr=native error" in diagnostics
     assert "validator_log=validator panic detail" in diagnostics
+
+
+def test_validator_rejects_unknown_feature_set_cluster(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="clone_feature_set"):
+        LocalValidator(tmp_path / "ledger", clone_feature_set="untrusted-rpc")

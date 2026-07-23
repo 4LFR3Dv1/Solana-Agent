@@ -46,7 +46,7 @@ class PolicyRule:
         )
 
 
-POLICY_VERSION = "solana-agent-policy/1.2.0"
+POLICY_VERSION = "solana-agent-policy/1.4.0"
 SOLANA_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 MATERIAL_SOLANA_OPERATIONS = frozenset({"airdrop", "sign", "deploy", "invoke"})
 MATERIAL_ADAPTER_OPERATIONS = frozenset(
@@ -123,6 +123,16 @@ DEFAULT_RULES: tuple[PolicyRule, ...] = (
         ("workspace.created",),
     ),
     PolicyRule(
+        "apply-counter-template",
+        (PolicyProfile.LOCAL_SAFE, PolicyProfile.DEVNET_SAFE),
+        "counter_template",
+        "apply",
+        PolicyEffect.ALLOW,
+        RiskLevel.MEDIUM,
+        "the packaged counter template may be applied inside a newly scaffolded workspace",
+        ("template.files", "program.id"),
+    ),
+    PolicyRule(
         "anchor-test",
         (PolicyProfile.LOCAL_SAFE, PolicyProfile.DEVNET_SAFE),
         "anchor",
@@ -193,8 +203,18 @@ DEFAULT_RULES: tuple[PolicyRule, ...] = (
         ("program.executable",),
     ),
     PolicyRule(
+        "require-wallet-balance",
+        tuple(PolicyProfile),
+        "solana",
+        "require_balance",
+        PolicyEffect.ALLOW,
+        RiskLevel.LOW,
+        "wallet balance verification is a read-only RPC operation",
+        ("balance.observed",),
+    ),
+    PolicyRule(
         "assemble-evidence",
-        (PolicyProfile.LOCAL_SAFE, PolicyProfile.DEVNET_SAFE),
+        tuple(PolicyProfile),
         "evidence",
         "assemble",
         PolicyEffect.ALLOW,

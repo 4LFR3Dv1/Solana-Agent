@@ -22,12 +22,16 @@ class LocalValidator:
         rpc_port: int = 8899,
         faucet_port: int = 9900,
         startup_timeout_seconds: int = 30,
+        clone_feature_set: str | None = None,
     ) -> None:
+        if clone_feature_set not in {None, "devnet", "testnet", "mainnet-beta"}:
+            raise ValueError("clone_feature_set must be devnet, testnet, mainnet-beta, or None")
         self.ledger_path = ledger_path.resolve()
         self.executable = executable
         self.rpc_port = rpc_port
         self.faucet_port = faucet_port
         self.startup_timeout_seconds = startup_timeout_seconds
+        self.clone_feature_set = clone_feature_set
         self.process: subprocess.Popen[str] | None = None
 
     @property
@@ -38,18 +42,21 @@ class LocalValidator:
         if self.process is not None:
             raise LocalValidatorError("local validator is already running")
         self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
+        argv = [
+            self.executable,
+            "--ledger",
+            str(self.ledger_path),
+            "--rpc-port",
+            str(self.rpc_port),
+            "--faucet-port",
+            str(self.faucet_port),
+            "--reset",
+            "--quiet",
+        ]
+        if self.clone_feature_set is not None:
+            argv.extend(["--url", self.clone_feature_set, "--clone-feature-set"])
         self.process = subprocess.Popen(
-            [
-                self.executable,
-                "--ledger",
-                str(self.ledger_path),
-                "--rpc-port",
-                str(self.rpc_port),
-                "--faucet-port",
-                str(self.faucet_port),
-                "--reset",
-                "--quiet",
-            ],
+            argv,
             shell=False,
             text=True,
             stdout=subprocess.PIPE,

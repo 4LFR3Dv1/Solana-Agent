@@ -1,15 +1,11 @@
 id: create-counter
-version: 1.0.0
+version: 1.1.0
 goal: Scaffold, test, deploy, invoke, and verify an Anchor counter on devnet.
 inputs:
   - name: workspace
     description: Absolute path for the new Anchor workspace.
   - name: project_name
     description: Anchor project and program name.
-  - name: airdrop_amount
-    required: false
-    default: "1"
-    description: Devnet SOL requested before deployment.
 steps:
   - id: inspect-environment
     adapter: doctor
@@ -19,6 +15,7 @@ steps:
   - id: scaffold
     adapter: anchor
     operation: scaffold
+    timeout_seconds: 120
     depends_on: [inspect-environment]
     arguments:
       workspace: "{{inputs.workspace}}"
@@ -29,16 +26,33 @@ steps:
           path: "{{inputs.workspace}}"
     acceptance:
       - type: command_succeeded
+  - id: apply-counter-template
+    adapter: counter_template
+    operation: apply
+    depends_on: [scaffold]
+    arguments:
+      workspace: "{{inputs.workspace}}"
+      project_name: "{{inputs.project_name}}"
+      cluster: "{{runtime.cluster}}"
+    cwd: "{{inputs.workspace}}"
+    acceptance:
+      - type: command_succeeded
+      - type: result_equals
+        parameters:
+          path: metadata.file_count
+          expected: 5
   - id: install-dependencies
     adapter: package
     operation: install
-    depends_on: [scaffold]
+    timeout_seconds: 120
+    depends_on: [apply-counter-template]
     cwd: "{{inputs.workspace}}"
     acceptance:
       - type: command_succeeded
   - id: build
     adapter: anchor
     operation: build
+    timeout_seconds: 300
     depends_on: [install-dependencies]
     cwd: "{{inputs.workspace}}"
     acceptance:
@@ -46,6 +60,7 @@ steps:
   - id: test
     adapter: anchor
     operation: test
+    timeout_seconds: 300
     depends_on: [build]
     cwd: "{{inputs.workspace}}"
     acceptance:
@@ -53,12 +68,12 @@ steps:
       - type: exit_code_equals
         parameters:
           value: 0
-  - id: airdrop
+  - id: funding-check
     adapter: solana
-    operation: airdrop
+    operation: require_balance
     depends_on: [test]
     arguments:
-      amount: "{{inputs.airdrop_amount}}"
+      minimum_lamports: 2000000000
       cluster: "{{runtime.cluster}}"
       wallet: "{{runtime.wallet}}"
     acceptance:
@@ -66,7 +81,8 @@ steps:
   - id: deploy
     adapter: anchor
     operation: deploy
-    depends_on: [airdrop]
+    timeout_seconds: 600
+    depends_on: [funding-check]
     cwd: "{{inputs.workspace}}"
     arguments:
       cluster: "{{runtime.cluster}}"
@@ -75,6 +91,7 @@ steps:
   - id: invoke
     adapter: package
     operation: run
+    timeout_seconds: 180
     depends_on: [deploy]
     cwd: "{{inputs.workspace}}"
     arguments:
@@ -90,3 +107,10 @@ steps:
       mission: create-counter
     acceptance:
       - type: command_succeeded
+      - type: result_equals
+        parameters:
+          path: metadata.verified
+          expected: true
+      - type: artifact_kind_exists
+        parameters:
+          kind: evidence.manifest

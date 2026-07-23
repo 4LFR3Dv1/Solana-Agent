@@ -54,6 +54,19 @@ solana_agent = ["py.typed"]
   "missions/deploy-existing-program.yaml",
   "missions/verify-devnet-deploy.yaml",
 ]
+"share/solana-agent/templates/anchor-counter/files" = [
+  "templates/anchor-counter/files/package.json.tmpl",
+  "templates/anchor-counter/files/README.md.tmpl",
+]
+"share/solana-agent/templates/anchor-counter/files/programs/__PROGRAM_SLUG__/src" = [
+  "templates/anchor-counter/files/programs/__PROGRAM_SLUG__/src/lib.rs.tmpl",
+]
+"share/solana-agent/templates/anchor-counter/files/scripts" = [
+  "templates/anchor-counter/files/scripts/interact.ts.tmpl",
+]
+"share/solana-agent/templates/anchor-counter/files/tests" = [
+  "templates/anchor-counter/files/tests/__PROGRAM_SLUG__.ts.tmpl",
+]
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-markers --basetemp=.pytest_tmp"

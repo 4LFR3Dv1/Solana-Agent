@@ -84,3 +84,39 @@ def test_cli_validates_core_mission_pack() -> None:
     assert completed.returncode == 0
     assert payload["ok"] is True
     assert payload["mission_count"] == 3
+
+
+def test_parser_exposes_governed_start_resume_and_approval_commands(tmp_path: Path) -> None:
+    contract = tmp_path / "runtime.json"
+    start = build_parser().parse_args(
+        ["missions", "start", "create-counter", "--contract", str(contract), "--input", "project_name=counter"]
+    )
+    resume = build_parser().parse_args(["missions", "resume", "run-1", "--contract", str(contract)])
+    approve = build_parser().parse_args(
+        ["approvals", "approve", "approval-1", "--by", "operator", "--contract", str(contract)]
+    )
+
+    assert start.mission_name == "create-counter"
+    assert start.input == ["project_name=counter"]
+    assert resume.run_id == "run-1"
+    assert approve.approval_decision == "approve"
+
+
+def test_parser_exposes_failed_command_output_inspection(tmp_path: Path) -> None:
+    contract = tmp_path / "runtime.json"
+    args = build_parser().parse_args(
+        [
+            "commands",
+            "list",
+            "run-1",
+            "--contract",
+            str(contract),
+            "--failed-only",
+            "--include-output",
+        ]
+    )
+
+    assert args.commands_command == "list"
+    assert args.run_id == "run-1"
+    assert args.failed_only is True
+    assert args.include_output is True
