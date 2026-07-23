@@ -33,10 +33,10 @@ jobs:
         run: ruff check .
 
       - name: Type check
-        run: mypy solana_agent
+        run: mypy solana_agent gateway
 
       - name: Test
         run: pytest
 
       - name: Compile package
-        run: python -m compileall -q solana_agent
+        run: python -m compileall -q solana_agent gateway

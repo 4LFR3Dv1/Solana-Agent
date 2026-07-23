@@ -142,9 +142,9 @@ Run the local quality gates:
 
 ```bash
 ruff check .
-mypy solana_agent
+mypy solana_agent gateway
 pytest
-python -m compileall -q solana_agent
+python -m compileall -q solana_agent gateway
 ```
 
 The same checks run in CI on supported Python versions. Contribution rules and
