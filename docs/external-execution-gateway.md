@@ -193,3 +193,7 @@ The payload is closed. The prepared message must be byte-identical to the
 persisted preparation. Adding the command is an additive gateway capability;
 the versioned envelope and all existing command shapes remain unchanged at
 `1.0.0`.
+
+Real-process fault injection and the localhost-only RPC proxy boundary are
+specified in `docs/chaos-testing.md`. Chaos hooks are absent by default and
+cannot enable arbitrary remote RPC endpoints.

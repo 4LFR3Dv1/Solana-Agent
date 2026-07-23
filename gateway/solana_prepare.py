@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
+from urllib.parse import urlparse
 
 import rfc8785
 from solders.hash import Hash
@@ -40,14 +41,25 @@ class PreparationRpc(Protocol):
     def call(self, method: str, params: list[Any]) -> dict[str, Any]: ...
 
 
+class RpcDefinitiveRejection(GatewayError):
+    """The RPC returned a JSON-RPC rejection for sendTransaction."""
+
+
 @dataclass
 class JsonRpcClient:
     endpoint: str = DEVNET_ENDPOINT
     transport: RpcTransport | None = None
     timeout_seconds: int = 20
+    allow_localhost_proxy: bool = False
 
     def __post_init__(self) -> None:
-        if self.endpoint != DEVNET_ENDPOINT:
+        parsed = urlparse(self.endpoint)
+        local_proxy = (
+            self.allow_localhost_proxy
+            and parsed.scheme == "http"
+            and parsed.hostname in {"127.0.0.1", "localhost", "::1"}
+        )
+        if self.endpoint != DEVNET_ENDPOINT and not local_proxy:
             raise ValueError("SA-GW-002 only permits the canonical devnet RPC")
         if self.transport is None:
             self.transport = UrllibRpcTransport()
@@ -60,6 +72,17 @@ class JsonRpcClient:
             self.timeout_seconds,
         )
         if response.get("error") is not None:
+            if method == "sendTransaction":
+                error = response["error"]
+                details: dict[str, Any] = {"method": method}
+                if isinstance(error, dict) and isinstance(error.get("code"), int):
+                    details["rpc_error_code"] = error["code"]
+                raise RpcDefinitiveRejection(
+                    "definitive_rejection",
+                    "Solana RPC conclusively rejected sendTransaction",
+                    retryable=False,
+                    details=details,
+                )
             raise GatewayError(
                 "rpc_failure",
                 f"Solana RPC {method} failed",
