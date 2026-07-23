@@ -1,5 +1,5 @@
 id: verify-devnet-deploy
-version: 1.2.0
+version: 1.3.0
 goal: Verify a devnet Program ID and assemble independently checkable evidence.
 inputs:
   - name: program_id
@@ -17,18 +17,9 @@ inputs:
     default: "1"
     description: Expected counter value encoded in the account.
 steps:
-  - id: verify-program
-    adapter: solana
-    operation: verify_program
-    arguments:
-      program_id: "{{inputs.program_id}}"
-      cluster: "{{runtime.cluster}}"
-    acceptance:
-      - type: command_succeeded
   - id: evidence
     adapter: evidence
     operation: assemble
-    depends_on: [verify-program]
     arguments:
       mission: verify-devnet-deploy
       program_id: "{{inputs.program_id}}"

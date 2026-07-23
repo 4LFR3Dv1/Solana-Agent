@@ -34,12 +34,17 @@ jq -n \
   }' >"${contract}"
 
 cd "${repo_root}"
-"${python_bin}" -m solana_agent --repo-root "${repo_root}" missions start verify-devnet-deploy \
+if ! "${python_bin}" -m solana_agent --repo-root "${repo_root}" missions start verify-devnet-deploy \
   --contract "${contract}" --state-root "${state_root}" --run-id "${run_id}" \
   --input "program_id=${program_id}" --input "counter_pubkey=${counter_pubkey}" \
   --input "deploy_signature=${deploy_signature}" --input "initialize_signature=${initialize_signature}" \
   --input "increment_signature=${increment_signature}" --input expected_count=1 \
-  | tee "${output_root}/independent-verification.json"
+  | tee "${output_root}/independent-verification.json"; then
+  "${python_bin}" -m solana_agent --repo-root "${repo_root}" commands list "${run_id}" \
+    --contract "${contract}" --state-root "${state_root}" --failed-only --include-output \
+    | tee "${output_root}/failed-commands.json"
+  exit 1
+fi
 
 evidence="${workspace}/.solana-agent/evidence/${run_id}/evidence.json"
 test -s "${evidence}"
