@@ -1,13 +1,32 @@
 # Solana Agent Runtime
 
-Solana Agent Runtime is an open-source execution, safety, and evaluation layer
-for coding agents that build on Solana. It turns local Solana and Anchor
-workflows into governed, reproducible, evidence-backed runs.
+Solana Agent Runtime is an open-source execution, safety, and evidence layer for
+agents that build on or execute authorized operations on Solana. It turns local
+Solana and Anchor workflows into governed, reproducible runs and exposes a
+limited external executor protocol for systems such as Foundry Pay.
 
-The project is currently **pre-alpha**. Its architecture and initial mission
-runner exist, but the complete devnet workflow has not yet been validated end
-to end. See the [development plan](docs/solana-agent-development-plan.md) for
-the implementation sequence and acceptance gates.
+The project is **pre-alpha**, but its first governed payment path has now been
+demonstrated on devnet: prepare and simulate an SPL transfer, bind authorization
+to the exact serialized message, persist the signature before broadcast,
+confirm the transaction, and recover by signature without rebroadcasting.
+
+Start with the [public evidence index](docs/evidence/README.md).
+
+## What has been proved
+
+| Capability | Environment | Status |
+|---|---|---|
+| SPL preparation, policy and simulation | live Solana devnet | demonstrated |
+| Exact-message authorization and isolated signing | deterministic + live devnet | demonstrated |
+| Submission and confirmation | live Solana devnet | demonstrated |
+| L1/L2 reconciliation | two live devnet RPC providers | demonstrated by Foundry Pay |
+| Lost-response recovery after restart | real subprocesses, deterministic upstream | demonstrated |
+| Two gateways sharing one journal | real subprocesses, deterministic upstream | one durable claim |
+
+The live governed transfer is publicly observable on
+[Solana Explorer](https://explorer.solana.com/tx/RzgQYATtgFZNG7eDgktPAaKh3R922BEjYNLRnvM7u96eFjsnSe4aFYQAtgaP4Hi7kyn91itF1eTEeo498NJ8uS4?cluster=devnet).
+The evidence does not claim mainnet readiness, exactly-once blockchain
+execution, L3 verification, or a production HSM/MPC deployment.
 
 ## Scope
 
@@ -25,9 +44,15 @@ This repository currently defines:
 - a declarative DAG mission engine in `solana_agent/missions/`
 - an independent external execution gateway in `gateway/`
 
-The target runtime will complement coding agents, Solana Developer MCP,
+The runtime complements coding agents, Solana Developer MCP,
 Anchor, and Solana CLI. Coding agents may propose work; the runtime remains
 responsible for policy, approvals, execution, journaling, and verification.
+
+When acting as an external executor, business authority remains outside this
+runtime. Foundry Pay owns economic intent, global policy, approval,
+authorization, reconciliation, and the final business result. Solana-Agent owns
+only Solana-specific preparation, local policy, simulation, submission,
+technical confirmation, recovery, and executor evidence.
 
 ## Target MVP
 
@@ -130,6 +155,10 @@ solana-agent-gateway \
 The envelope, replay, and recovery contract is documented in the
 [external execution gateway guide](docs/external-execution-gateway.md).
 
+For the current proof chain, exact implementation commits, transaction links,
+reconciliation hashes, failure scenarios, and explicit claim limits, see
+[Public evidence](docs/evidence/README.md).
+
 On Windows, the runtime defaults to WSL for Solana and Anchor commands.
 The WSL distro and user can be configured with `SOLANA_AGENT_WSL_DISTRO` and `SOLANA_AGENT_WSL_USER`.
 
@@ -181,8 +210,15 @@ The governed core now contains executable contracts, a transactional SQLite
 journal, versioned policy profiles, bound single-use approvals, a declarative
 mission DAG, a real counter template, RPC-backed evidence export, production
 execution adapters, and a pinned Linux toolchain. The older hardcoded runner
-remains available for compatibility. A public devnet proof is still required
-before the end-to-end milestone can be declared complete.
+remains available for compatibility.
+
+The external executor additionally has a structured JSONL gateway,
+`prepare/status/recover/evidence`, exact-message execution, signature-first
+persistence, explicit test-only kill points, and multi-process SQLite
+contention. A public devnet preparation proof and a governed Foundry Pay devnet
+settlement proof are complete. Remaining production gates include external
+security review, prolonged operation, mainnet controls, production signer
+infrastructure, and broader provider/validator diversity.
 
 ## License and provenance
 

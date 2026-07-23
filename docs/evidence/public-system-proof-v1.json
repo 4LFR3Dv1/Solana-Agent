@@ -1,0 +1,61 @@
+{
+  "proof_version": "1.0.0",
+  "as_of": "2026-07-23",
+  "network": "solana:devnet",
+  "implementations": {
+    "solana_agent_chaos": "5707240af22bc288149b68456b2a9fe810928efb",
+    "solana_agent_execution": "dfe1f2e6757374f606e7a27f33b771d44fd2925b",
+    "foundry_pay_e2e_evidence": "b70a584378120a4f49891dc402641bba0722d45d",
+    "foundry_pay_reconciliation": "5a57bdaee36ab3c66f8e378811134d3c804a8d8a",
+    "foundry_pay_process_evidence": "c6454f840ba8e994dbe47c02ad60716c8b39e065"
+  },
+  "live_settlement": {
+    "environment": "solana-devnet",
+    "explorer_url": "https://explorer.solana.com/tx/RzgQYATtgFZNG7eDgktPAaKh3R922BEjYNLRnvM7u96eFjsnSe4aFYQAtgaP4Hi7kyn91itF1eTEeo498NJ8uS4?cluster=devnet",
+    "slot": 478403722,
+    "amount_base_units": "1000000",
+    "source_delta_base_units": "-1000000",
+    "destination_delta_base_units": "1000000",
+    "execution_status": "finalized",
+    "economic_plan_hash": "sha256:43c3fb1d1ba9d76127ccc9452be833c8265db57f9dd2d27e7e95afeab2761a33",
+    "prepared_message_hash": "sha256:1aac4e92ecb84e91ac69d34d5f1f7040ff6ffde2988477e6b7eff6d5fc341d9b",
+    "simulation_attestation_hash": "sha256:e81a50bfa4a4f84718e3fea5a51b4bdd4ee8bad95448add52c0a6fc6855ee7a0",
+    "execution_commitment_hash": "sha256:1b79470062864179b011b5803843389f574d998d30e7afbf3a9fcb3962cbf8ff"
+  },
+  "reconciliation": {
+    "status": "approved",
+    "l1_observation_hash": "sha256:20147b7ceb7fa8190a9f354c6d7d36707e716ba20d8aace3eb3f8508817a2cf4",
+    "l2_observation_hash": "sha256:e465874ba90be369df1616edd226a083a0aaa5797001e4d4595f753971ac4121",
+    "independent_verification": "l2_verified",
+    "l3_verification": "not_claimed"
+  },
+  "real_process_chaos": {
+    "environment": "real-subprocesses-with-deterministic-upstream",
+    "scenario_count": 9,
+    "gateway_process_scenario_count": 8,
+    "all_send_transaction_counts_at_most_one": true,
+    "artifact_root": "sha256:483b8a6fd7a73a65f086c5f5b9fd4d7758f581243b1926b6d5c0288093de8899",
+    "journal_root": "sha256:a48b2303b908a928e1901a099bec67c45a7e1302cb67fe158159d7ef08056070",
+    "canonical_demo": {
+      "scenario": "response_lost_after_acceptance",
+      "send_transaction_requests_received": 1,
+      "upstream_requests_forwarded": 1,
+      "client_responses_delivered": 0,
+      "gateway_state_before_recovery": "needs_recovery",
+      "gateway_recovery_outcome": "recovered_confirmed",
+      "rebroadcasts": 0
+    }
+  },
+  "claim_boundary": {
+    "defensible_property": "at-most-one controlled-runtime broadcast with signature-first recovery and no automatic rematerialization under uncertainty",
+    "not_claimed": [
+      "exactly-once blockchain execution",
+      "arbitrary-failure tolerance",
+      "mainnet readiness",
+      "production custody",
+      "L3 independent verification",
+      "external security audit"
+    ]
+  },
+  "sensitive_material_persisted": false
+}
