@@ -60,9 +60,8 @@ class ExternalExecutionGateway:
             )
 
         try:
-            handler: Callable[[dict[str, Any]], dict[str, Any]] = getattr(
-                self.backend, request.command
-            )
+            method_name = request.command.replace("-", "_")
+            handler: Callable[[dict[str, Any]], dict[str, Any]] = getattr(self.backend, method_name)
             result = handler(request.payload)
             if not isinstance(result, dict):
                 raise GatewayError(

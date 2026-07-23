@@ -12,7 +12,11 @@ from gateway.backend import ExternalExecutionBackend, UnavailableExecutionBacken
 from gateway.journal import GatewayJournal
 from gateway.protocol import GatewayError, response_envelope
 from gateway.service import ExternalExecutionGateway
-from gateway.solana_prepare import DEVNET_ENDPOINT, JsonRpcClient, SolanaPreparationBackend
+from gateway.solana_execute import (
+    Ed25519AuthorizationVerifier,
+    SolanaExecutionBackend,
+)
+from gateway.solana_prepare import DEVNET_ENDPOINT, JsonRpcClient
 
 DEFAULT_MAX_LINE_BYTES = 1_048_576
 
@@ -28,25 +32,17 @@ def run_jsonl(
         if not line.strip():
             continue
         if len(line.encode("utf-8")) > max_line_bytes:
-            response = _transport_error(
-                GatewayError("line_too_large", "JSONL request exceeds the byte limit")
-            )
+            response = _transport_error(GatewayError("line_too_large", "JSONL request exceeds the byte limit"))
         else:
             try:
                 value: Any = json.loads(line, parse_constant=_reject_json_constant)
             except (json.JSONDecodeError, ValueError):
-                response = _transport_error(
-                    GatewayError("invalid_json", "input line is not valid JSON")
-                )
+                response = _transport_error(GatewayError("invalid_json", "input line is not valid JSON"))
             else:
                 try:
                     response = gateway.handle(value)
                 except GatewayError as error:
-                    request_id = (
-                        value.get("gateway_request_id")
-                        if isinstance(value, dict)
-                        else None
-                    )
+                    request_id = value.get("gateway_request_id") if isinstance(value, dict) else None
                     command = value.get("command") if isinstance(value, dict) else None
                     response = response_envelope(
                         request_id=request_id if isinstance(request_id, str) else None,
@@ -80,6 +76,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--signer",
         help="public key authorized to pay fees and own the source ATA; never a private key",
     )
+    parser.add_argument(
+        "--foundry-authority",
+        help="public Ed25519 key used only to verify ExecutionAuthorization envelopes",
+    )
     parser.add_argument("--executor-id", default="solana-agent")
     parser.add_argument("--rpc-endpoint", default=DEVNET_ENDPOINT)
     return parser
@@ -93,11 +93,13 @@ def main(
     args = build_parser().parse_args(argv)
     selected_backend = backend
     if selected_backend is None and args.signer is not None:
-        selected_backend = SolanaPreparationBackend(
+        verifier = Ed25519AuthorizationVerifier(args.foundry_authority) if args.foundry_authority is not None else None
+        selected_backend = SolanaExecutionBackend(
             journal_path=args.journal,
             signer=args.signer,
             executor_id=args.executor_id,
             rpc=JsonRpcClient(endpoint=args.rpc_endpoint),
+            authorization_verifier=verifier,
         )
     gateway = ExternalExecutionGateway(
         GatewayJournal(args.journal),

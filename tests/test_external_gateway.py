@@ -24,6 +24,9 @@ class RecordingBackend:
     def prepare(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self._record("prepare", payload)
 
+    def authorize_and_execute(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._record("authorize-and-execute", payload)
+
     def status(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self._record("status", payload)
 
@@ -56,7 +59,7 @@ def test_routes_all_supported_commands(journal_path: Path) -> None:
     backend = RecordingBackend()
     gateway = ExternalExecutionGateway(GatewayJournal(journal_path), backend)
 
-    for command in ("prepare", "status", "recover", "evidence"):
+    for command in ("prepare", "authorize-and-execute", "status", "recover", "evidence"):
         response = gateway.handle(envelope(f"gw_{command}", command))
         assert response["ok"] is True
         assert response["result"]["handled_by"] == command
@@ -64,6 +67,7 @@ def test_routes_all_supported_commands(journal_path: Path) -> None:
 
     assert [command for command, _ in backend.calls] == [
         "prepare",
+        "authorize-and-execute",
         "status",
         "recover",
         "evidence",
@@ -105,9 +109,7 @@ def test_same_id_with_different_input_is_idempotency_conflict(
     gateway = ExternalExecutionGateway(GatewayJournal(journal_path), backend)
     gateway.handle(envelope(payload={"execution_request_id": "exec_1"}))
 
-    response = gateway.handle(
-        envelope(payload={"execution_request_id": "exec_tampered"})
-    )
+    response = gateway.handle(envelope(payload={"execution_request_id": "exec_tampered"}))
 
     assert response["ok"] is False
     assert response["error"]["code"] == "idempotency_conflict"
@@ -159,9 +161,7 @@ def test_envelope_is_closed_and_versioned() -> None:
         GatewayRequest.parse({**envelope(), "prompt": "send freely"})
 
     with pytest.raises(GatewayError, match="expected gateway_protocol_version"):
-        GatewayRequest.parse(
-            {**envelope(), "gateway_protocol_version": "99.0.0"}
-        )
+        GatewayRequest.parse({**envelope(), "gateway_protocol_version": "99.0.0"})
 
 
 def test_jsonl_emits_one_response_per_nonempty_line_and_continues(
@@ -189,9 +189,7 @@ def test_jsonl_emits_one_response_per_nonempty_line_and_continues(
 
 
 def test_jsonl_rejects_non_json_numeric_constants(journal_path: Path) -> None:
-    gateway = ExternalExecutionGateway(
-        GatewayJournal(journal_path), RecordingBackend()
-    )
+    gateway = ExternalExecutionGateway(GatewayJournal(journal_path), RecordingBackend())
     source = io.StringIO(
         '{"gateway_protocol_version":"1.0.0","gateway_request_id":"gw_nan",'
         '"command":"prepare","payload":{"amount":NaN}}\n'
@@ -206,15 +204,9 @@ def test_jsonl_rejects_non_json_numeric_constants(journal_path: Path) -> None:
 
 
 def test_transport_hash_ignores_object_key_order_but_not_array_order() -> None:
-    first = GatewayRequest.parse(
-        envelope(payload={"nested": {"b": 2, "a": 1}, "accounts": ["A", "B"]})
-    )
-    reordered_object = GatewayRequest.parse(
-        envelope(payload={"accounts": ["A", "B"], "nested": {"a": 1, "b": 2}})
-    )
-    reordered_array = GatewayRequest.parse(
-        envelope(payload={"nested": {"a": 1, "b": 2}, "accounts": ["B", "A"]})
-    )
+    first = GatewayRequest.parse(envelope(payload={"nested": {"b": 2, "a": 1}, "accounts": ["A", "B"]}))
+    reordered_object = GatewayRequest.parse(envelope(payload={"accounts": ["A", "B"], "nested": {"a": 1, "b": 2}}))
+    reordered_array = GatewayRequest.parse(envelope(payload={"nested": {"a": 1, "b": 2}, "accounts": ["B", "A"]}))
 
     assert first.request_hash == reordered_object.request_hash
     assert first.request_hash != reordered_array.request_hash
