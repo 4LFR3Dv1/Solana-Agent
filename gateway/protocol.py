@@ -8,10 +8,8 @@ from dataclasses import dataclass
 from typing import Any
 
 PROTOCOL_VERSION = "1.0.0"
-SUPPORTED_COMMANDS = frozenset({"prepare", "status", "recover", "evidence"})
-_ENVELOPE_KEYS = frozenset(
-    {"gateway_protocol_version", "gateway_request_id", "command", "payload"}
-)
+SUPPORTED_COMMANDS = frozenset({"prepare", "authorize-and-execute", "status", "recover", "evidence"})
+_ENVELOPE_KEYS = frozenset({"gateway_protocol_version", "gateway_request_id", "command", "payload"})
 
 
 class GatewayError(Exception):
@@ -87,7 +85,7 @@ class GatewayRequest:
         if command not in SUPPORTED_COMMANDS:
             raise GatewayError(
                 "unsupported_command",
-                "command must be one of prepare, status, recover, evidence",
+                "command must be one of prepare, authorize-and-execute, status, recover, evidence",
             )
 
         payload = value["payload"]

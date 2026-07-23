@@ -10,6 +10,8 @@ from gateway.protocol import GatewayError
 class ExternalExecutionBackend(Protocol):
     def prepare(self, payload: dict[str, Any]) -> dict[str, Any]: ...
 
+    def authorize_and_execute(self, payload: dict[str, Any]) -> dict[str, Any]: ...
+
     def status(self, payload: dict[str, Any]) -> dict[str, Any]: ...
 
     def recover(self, payload: dict[str, Any]) -> dict[str, Any]: ...
@@ -29,6 +31,9 @@ class UnavailableExecutionBackend:
 
     def prepare(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self._unavailable("prepare")
+
+    def authorize_and_execute(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._unavailable("authorize-and-execute")
 
     def status(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self._unavailable("status")

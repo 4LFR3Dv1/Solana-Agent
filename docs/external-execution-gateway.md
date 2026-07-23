@@ -8,12 +8,15 @@ line.
 `SA-GW-001` implements transport, dispatch, durability, and replay safety.
 `SA-GW-002` adds an optional devnet SPL preparation backend. It materializes
 and simulates a `TransferChecked` message but cannot sign or broadcast it.
+`SA-EXEC-001` adds a signature-first execution layer without moving or
+modifying the Solana-Agent kernel.
 
 ## Commands
 
 The version 1 command set is closed:
 
 - `prepare`
+- `authorize-and-execute`
 - `status`
 - `recover`
 - `evidence`
@@ -40,8 +43,21 @@ solana-agent-gateway \
 ```
 
 The configured signer must equal the economic source. It is only an account
-meta and fee payer in the prepared message. Private keys, keypair paths,
-signatures, and broadcast commands are not accepted.
+meta and fee payer in the prepared message. Private keys and keypair paths are
+never accepted.
+
+Execution additionally requires the public Ed25519 identity of the Foundry
+authorization authority:
+
+```bash
+solana-agent-gateway \
+  --journal .solana-agent/gateway.sqlite3 \
+  --signer SOURCE_OWNER_PUBLIC_KEY \
+  --foundry-authority FOUNDRY_AUTHORIZATION_PUBLIC_KEY
+```
+
+The authority key verifies the JCS-canonical unsigned
+`ExecutionAuthorization`. It cannot sign Solana transactions.
 
 The `prepare` payload contains the Foundry `ExternalExecutionRequest` plus
 closed local constraints:
@@ -84,16 +100,21 @@ backend dispatch and persists the complete response before stdout is flushed.
   `needs_recovery`; the gateway never redispatches it automatically.
 
 This is transport idempotency, not a claim of blockchain `exactly once`.
-Future effectful commands must persist a signature before replying and resolve
-ambiguous broadcast state through recovery.
+The effectful `authorize-and-execute` command persists the Solana signature,
+signed transaction, authorization, and `broadcast_started` state before its
+single `sendTransaction` call. It sets RPC `maxRetries` to zero. If the RPC
+response is lost, the state becomes `needs_recovery`; neither transport replay
+nor a new gateway request can broadcast again.
 
 ## Backend boundary
 
-`ExternalExecutionBackend` defines four methods matching the command set. The
+`ExternalExecutionBackend` defines five methods matching the command set. The
 default backend fails closed with `backend_not_configured`. Passing a public
-`--signer` selects `SolanaPreparationBackend`. The only supported network and
-capability are `solana:devnet` and `solana.spl_transfer.v1`; the only permitted
-program is the canonical SPL Token program.
+`--signer` selects `SolanaExecutionBackend`, which preserves the preparation
+behavior and fails execution closed until `--foundry-authority` is configured.
+The only supported network and capability are `solana:devnet` and
+`solana.spl_transfer.v1`; the only permitted program is the canonical SPL Token
+program.
 
 The gateway request hash uses deterministic JSON only to protect the local
 transport idempotency key. It is not the economic `plan_hash`, JCS domain
@@ -122,8 +143,53 @@ after simulation, or the blockhash's last valid block height. Any expired
 message requires a new `execution_request_id`, blockhash, simulation,
 commitment, and future execution authorization.
 
-Because SA-GW-002 never broadcasts, recovery can only report
-`failed_before_broadcast`. Rematerialization is allowed only after the previous
-preparation is proven expired. Time expiry is evaluated locally before any
-block-height query, so a known-expired preparation remains recoverable while
-the RPC is unavailable.
+Before execution, the agent independently checks authorization time bounds,
+prepared-message expiry, and blockhash height. It verifies the Foundry
+authorization signature and the Solana signature over the exact stored message
+bytes. It also requires the message fee payer and sole required signer to equal
+the configured signer.
+
+After broadcast, `status` and `recover` query
+`getSignatureStatuses(signature, searchTransactionHistory=true)`. A confirmed
+or failed observation is persisted with the technical receipt. A missing
+signature remains ambiguous while the blockhash is live. Only when the
+signature is still absent after the last valid block height can recovery report
+`not_found_after_expiry_needs_reconciliation`. This does not authorize
+rematerialization: Foundry must independently reconcile the obligation before
+any new preparation.
+
+`evidence` returns the preparation, authorization, persisted signature, signed
+transaction, RPC submission response, chain observation, and current technical
+receipt. These artifacts are executor evidence; Foundry remains responsible for
+independent reconciliation and business success.
+
+### `authorize-and-execute` payload
+
+```json
+{
+  "execution_request_id": "exec_01",
+  "prepared_message_base64": "...",
+  "execution_authorization": {
+    "type": "execution_authorization",
+    "protocol_version": "1.0.0",
+    "authorization_id": "auth_01",
+    "execution_request_id": "exec_01",
+    "execution_commitment_hash": "sha256:...",
+    "prepared_message_hash": "sha256:...",
+    "signer": "...",
+    "single_use": true,
+    "issued_at": "2026-07-23T16:00:00Z",
+    "expires_at": "2026-07-23T16:00:30Z",
+    "authorization_signature": "BASE58_ED25519_SIGNATURE"
+  },
+  "message_signature": {
+    "signer": "...",
+    "signature": "BASE58_SOLANA_SIGNATURE"
+  }
+}
+```
+
+The payload is closed. The prepared message must be byte-identical to the
+persisted preparation. Adding the command is an additive gateway capability;
+the versioned envelope and all existing command shapes remain unchanged at
+`1.0.0`.
