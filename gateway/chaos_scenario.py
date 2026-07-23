@@ -69,7 +69,7 @@ def _digest(value: Any) -> str:
 
 
 def _creation_flags() -> int:
-    return subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    return int(getattr(subprocess, "CREATE_NO_WINDOW", 0)) if os.name == "nt" else 0
 
 
 class GatewayProcess:
