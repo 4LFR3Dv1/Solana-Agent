@@ -12,6 +12,7 @@ from gateway.backend import ExternalExecutionBackend, UnavailableExecutionBacken
 from gateway.journal import GatewayJournal
 from gateway.protocol import GatewayError, response_envelope
 from gateway.service import ExternalExecutionGateway
+from gateway.solana_prepare import DEVNET_ENDPOINT, JsonRpcClient, SolanaPreparationBackend
 
 DEFAULT_MAX_LINE_BYTES = 1_048_576
 
@@ -75,6 +76,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=DEFAULT_MAX_LINE_BYTES,
     )
+    parser.add_argument(
+        "--signer",
+        help="public key authorized to pay fees and own the source ATA; never a private key",
+    )
+    parser.add_argument("--executor-id", default="solana-agent")
+    parser.add_argument("--rpc-endpoint", default=DEVNET_ENDPOINT)
     return parser
 
 
@@ -84,9 +91,17 @@ def main(
     backend: ExternalExecutionBackend | None = None,
 ) -> int:
     args = build_parser().parse_args(argv)
+    selected_backend = backend
+    if selected_backend is None and args.signer is not None:
+        selected_backend = SolanaPreparationBackend(
+            journal_path=args.journal,
+            signer=args.signer,
+            executor_id=args.executor_id,
+            rpc=JsonRpcClient(endpoint=args.rpc_endpoint),
+        )
     gateway = ExternalExecutionGateway(
         GatewayJournal(args.journal),
-        backend or UnavailableExecutionBackend(),
+        selected_backend or UnavailableExecutionBackend(),
     )
     return run_jsonl(
         sys.stdin,

@@ -26,6 +26,8 @@ classifiers = [
 ]
 dependencies = [
   "PyYAML>=6.0.2,<7",
+  "rfc8785>=0.1.4,<1",
+  "solders>=0.28,<0.29",
 ]
 
 [project.optional-dependencies]

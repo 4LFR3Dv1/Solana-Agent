@@ -5,10 +5,9 @@ without moving or modifying its existing execution kernel. The gateway is
 versioned JSONL over stdin/stdout, with one response for each non-empty input
 line.
 
-This work item implements transport, dispatch, durability, and replay safety.
-It deliberately does **not** materialize, simulate, sign, or broadcast Solana
-transactions. `SA-GW-002` will connect the backend boundary to local policy and
-Solana preparation.
+`SA-GW-001` implements transport, dispatch, durability, and replay safety.
+`SA-GW-002` adds an optional devnet SPL preparation backend. It materializes
+and simulates a `TransferChecked` message but cannot sign or broadcast it.
 
 ## Commands
 
@@ -29,6 +28,44 @@ Start the process with:
 
 ```bash
 solana-agent-gateway --journal .solana-agent/gateway.sqlite3
+```
+
+Without `--signer`, the backend fails closed. Enable preparation with a public
+key only:
+
+```bash
+solana-agent-gateway \
+  --journal .solana-agent/gateway.sqlite3 \
+  --signer SOURCE_OWNER_PUBLIC_KEY
+```
+
+The configured signer must equal the economic source. It is only an account
+meta and fee payer in the prepared message. Private keys, keypair paths,
+signatures, and broadcast commands are not accepted.
+
+The `prepare` payload contains the Foundry `ExternalExecutionRequest` plus
+closed local constraints:
+
+```json
+{
+  "request": {
+    "type": "external_execution_request",
+    "protocol_version": "1.0.0",
+    "execution_request_id": "exec_01",
+    "idempotency_key": "idem_01",
+    "economic_plan": {},
+    "economic_plan_hash": "sha256:...",
+    "economic_approval": {}
+  },
+  "preparation_context": {
+    "constraints": {
+      "max_fee_lamports": 50000,
+      "allowed_programs": [
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+      ]
+    }
+  }
+}
 ```
 
 Stdout is reserved for compact protocol responses. Diagnostics and application
@@ -53,11 +90,40 @@ ambiguous broadcast state through recovery.
 ## Backend boundary
 
 `ExternalExecutionBackend` defines four methods matching the command set. The
-default backend fails closed with `backend_not_configured`. Tests inject a
-deterministic backend to prove routing and recovery without implying that
-Solana execution exists.
+default backend fails closed with `backend_not_configured`. Passing a public
+`--signer` selects `SolanaPreparationBackend`. The only supported network and
+capability are `solana:devnet` and `solana.spl_transfer.v1`; the only permitted
+program is the canonical SPL Token program.
 
 The gateway request hash uses deterministic JSON only to protect the local
 transport idempotency key. It is not the economic `plan_hash`, JCS domain
-normalization, a prepared Solana message hash, or an execution commitment.
-Those protocol objects remain explicit backend inputs in subsequent work.
+normalization, a prepared Solana message hash, or an execution commitment. The
+preparation backend independently applies RFC 8785 to the economic plan,
+simulation attestation, and execution commitment. The prepared message hash is
+SHA-256 over the exact serialized versioned message bytes.
+
+The economic source and destination are wallet owners. Associated token
+accounts are derived deterministically. Preparation verifies mint ownership,
+decimals, token-account owners, source balance, RPC genesis hash, recent
+blockhash, fee, and simulation result. Source and destination owners must
+differ, preventing the two writable token-account roles from aliasing.
+
+RPC simulation observations are normalized separately from external protocol
+objects before hashing: every observed integer becomes its unsigned decimal
+string representation. This accommodates valid Solana `u64` fields such as
+`rentEpoch = 18446744073709551615` without weakening the JCS safe-integer
+rejection applied to Foundry requests. RPC floats and unsupported values remain
+invalid.
+
+## Expiry and recovery
+
+A preparation expires at the earliest of the economic-plan expiry, 60 seconds
+after simulation, or the blockhash's last valid block height. Any expired
+message requires a new `execution_request_id`, blockhash, simulation,
+commitment, and future execution authorization.
+
+Because SA-GW-002 never broadcasts, recovery can only report
+`failed_before_broadcast`. Rematerialization is allowed only after the previous
+preparation is proven expired. Time expiry is evaluated locally before any
+block-height query, so a known-expired preparation remains recoverable while
+the RPC is unavailable.

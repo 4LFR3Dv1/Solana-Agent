@@ -117,11 +117,14 @@ python -m solana_agent run create-counter \
   --approve-deploy
 ```
 
-Run the external JSONL gateway. Its default backend fails closed until
-`SA-GW-002` connects Solana preparation:
+Run the external JSONL gateway. It fails closed without an explicitly
+configured public signer:
 
 ```bash
 solana-agent-gateway --journal .solana-agent/gateway.sqlite3
+solana-agent-gateway \
+  --journal .solana-agent/gateway.sqlite3 \
+  --signer SOURCE_OWNER_PUBLIC_KEY
 ```
 
 The envelope, replay, and recovery contract is documented in the

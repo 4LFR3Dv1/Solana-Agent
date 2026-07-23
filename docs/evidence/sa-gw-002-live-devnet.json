@@ -1,0 +1,76 @@
+{
+  "proof_version": "1.0.0",
+  "work_item": "SA-GW-002",
+  "network": "solana:devnet",
+  "rpc_endpoint": "https://api.devnet.solana.com",
+  "genesis_hash": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+  "fixture": {
+    "created_at": "2026-07-23T16:32:23Z",
+    "payer_and_source_owner": "9zsJvRFTxAG5sBuXhjMDZkgWb9oqQbK8gDywo7mUMNKb",
+    "destination_owner": "6dz2u59pmn9JnSMQMeB16Mq2iMDzx3Jz1Xa2dTdbxAiE",
+    "mint": "2tUzxADKHWxwTpihHuuzwfoGhYBY7735s2QXEuUcNX3k",
+    "decimals": 6,
+    "source_ata_public_address": "ACMsvvFpaafhg3477mgTu3ovgrhFLn9VMTB6Nzp65mnf",
+    "destination_ata_public_address": "EUt7wV4f5bzSFJccZ5aafJV7zykZfyWz9rctaug7hVxd",
+    "source_amount_base_units": "100000000",
+    "destination_amount_base_units": "0",
+    "independently_observed_slot": 478362811,
+    "transactions": [
+      {
+        "purpose": "create_mint",
+        "signature": "5kreZZVAevXxAyZEFPp5yCeLrKD5q8NtgPN18SYgyDdPBCb31DYSMTWuuopkjWQn63Kk4fUirQWmDrxpQX2X6JBJ",
+        "slot": 478362164,
+        "confirmation_status": "finalized",
+        "error": null
+      },
+      {
+        "purpose": "create_token_accounts",
+        "signature": "5RY34WsapUMeh3pfyTo6f7qPpQLyKr6BXLNiP74RnDFEMKdFaYm2m9PddWgpuv6kbV6AVwpgwXjLr3rrNg4cuWsh",
+        "slot": 478362169,
+        "confirmation_status": "finalized",
+        "error": null
+      },
+      {
+        "purpose": "mint_to_source",
+        "signature": "3yVF5dUKwVCAJVGawuaZeWQgPYCVQguXsuZbZ6VSAp5rCSZkPmFD5FLYB84QfR5VwHhWVrx35wEQfAD1a3D1VMs1",
+        "slot": 478362174,
+        "confirmation_status": "finalized",
+        "error": null
+      }
+    ]
+  },
+  "live_prepare": {
+    "execution_request_id": "exec_sa_gw_002_live_20260723T163529Z",
+    "economic_plan_hash": "sha256:d1cff2a760c7ca3b377e1f640abfea194b939d1a48385e0f0838d87aad5adfb3",
+    "prepared_message_hash": "sha256:85a6b98ca7c050ee9dcba7aa0750d876a8ef5fd084458e768200256a9950cba6",
+    "simulation_attestation_hash": "sha256:8ea92ac3e6cf487989c3292d6b67059be5fc32b5b3e13086a6d648e082efb75f",
+    "execution_commitment_hash": "sha256:e5e6ec585f0e46a6a77a2c07c291d9bb1b0c02c9c375297abdf739b00421ee79",
+    "simulation": {
+      "success": true,
+      "slot": 478362693,
+      "fee_lamports": 5000,
+      "units_consumed": 105,
+      "recent_blockhash": "xcBavHnRL6QhMdExzY8DnPQuFLweJ6JqZiDyie3qeD6",
+      "last_valid_block_height": 466197815,
+      "accounts_observed_hash": "sha256:39bc72ff74f3cbde5f44f2059784905ec19210775de893b42f4b6747061acd21",
+      "logs_hash": "sha256:becedab55edbd5cd907943abc79f44ee3eba8d14fd9df58d841a38d05035bb70"
+    },
+    "local_policy": {
+      "decision": "allow",
+      "rule_id": "spl-transfer-prepare-v1"
+    }
+  },
+  "durability_checks": {
+    "same_gateway_request_replayed": true,
+    "status_after_process_restart": "prepared",
+    "recover_outcome": "failed_before_broadcast",
+    "recover_may_rematerialize": false,
+    "evidence_after_process_restart": true
+  },
+  "safety_checks": {
+    "private_key_accepted_by_gateway": false,
+    "signature_produced_by_gateway": false,
+    "broadcast_performed_by_gateway": false,
+    "destination_balance_unchanged": true
+  }
+}
