@@ -79,8 +79,8 @@ client responses delivered        = 0
 rebroadcasts                      = 0
 ```
 
-The full generated scenario bundle remains in the private Foundry Pay
-repository. Its sanitized public checkpoint is mirrored in
+The full generated scenario bundle is maintained in the companion
+Foundry Pay repository. Its sanitized public checkpoint is mirrored in
 [`public-system-proof-v1.json`](public-system-proof-v1.json).
 
 ## Verification boundary

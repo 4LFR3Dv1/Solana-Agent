@@ -9,6 +9,13 @@
     "foundry_pay_reconciliation": "5a57bdaee36ab3c66f8e378811134d3c804a8d8a",
     "foundry_pay_process_evidence": "c6454f840ba8e994dbe47c02ad60716c8b39e065"
   },
+  "publication": {
+    "solana_agent_merge_commit": "ab2b5804ad3fe79c4ced079b59bd43c1df12449c",
+    "foundry_pay_merge_commit": "3e9ba07eaeccfa49ef1a2adf2cccb7d637930c13",
+    "github_actions_run_id": 30049637775,
+    "github_actions_artifact_id": 8580490006,
+    "github_actions_artifact_digest": "sha256:d4f6b98822102407bee58db12b52c29dca58fef8b4b77529e36a1180675638a6"
+  },
   "live_settlement": {
     "environment": "solana-devnet",
     "explorer_url": "https://explorer.solana.com/tx/RzgQYATtgFZNG7eDgktPAaKh3R922BEjYNLRnvM7u96eFjsnSe4aFYQAtgaP4Hi7kyn91itF1eTEeo498NJ8uS4?cluster=devnet",
