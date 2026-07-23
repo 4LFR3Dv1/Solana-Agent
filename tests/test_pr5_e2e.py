@@ -102,7 +102,9 @@ def test_evidence_adapter_verifies_rpc_state_and_exports_bundle(tmp_path: Path) 
     journal.create_run(mission_id="create-counter", run_id="run-proof")
     journal.execute(
         CommandSpec("run-proof", "deploy", "anchor", "deploy", cwd=str(workspace)),
-        FakeExecutor(ExecutionResult(0, stdout=f"Program Id: {PROGRAM_ID}\nSignature: {DEPLOY_SIGNATURE}\n")),
+        FakeExecutor(
+            ExecutionResult(0, stdout=f"Program Id: {PROGRAM_ID}\nDeploy signature: {DEPLOY_SIGNATURE}\n")
+        ),
         validator=lambda _: ValidationDecision.allow(),
     )
     invoke_stdout = "\n".join(

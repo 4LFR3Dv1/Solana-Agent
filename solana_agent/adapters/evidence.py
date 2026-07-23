@@ -15,7 +15,7 @@ from .solana_cli import PUBLIC_KEY
 from .solana_rpc import RpcTransport, UrllibRpcTransport
 
 MARKER = re.compile(r"^(PROGRAM_ID|COUNTER_PUBKEY|INITIALIZE_SIGNATURE|INCREMENT_SIGNATURE|COUNT)=(.+)$")
-DEPLOY_SIGNATURE = re.compile(r"^Signature:\s+([1-9A-HJ-NP-Za-km-z]{64,88})\s*$")
+DEPLOY_SIGNATURE = re.compile(r"^(?:Deploy )?[Ss]ignature:\s+([1-9A-HJ-NP-Za-km-z]{64,88})\s*$")
 DEPLOY_PROGRAM_ID = re.compile(r"^Program Id:\s+([1-9A-HJ-NP-Za-km-z]{32,44})\s*$")
 
 

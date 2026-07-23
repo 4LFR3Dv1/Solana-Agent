@@ -133,6 +133,19 @@ def test_wallet_balance_requirement_is_an_allowlisted_read(tmp_path: Path) -> No
     assert repository.list_policy_decisions(outcome.command.id)[0].rule_id == "require-wallet-balance"
 
 
+def test_evidence_assembly_is_available_in_read_only_profile(tmp_path: Path) -> None:
+    journal, repository, _, _ = governed_runtime(tmp_path, profile=PolicyProfile.READ_ONLY)
+
+    outcome = journal.execute(
+        spec(tmp_path, adapter="evidence", operation="assemble"),
+        FakeExecutor(ExecutionResult(exit_code=0, stdout="evidence assembled")),
+        policy_context=context(tmp_path, max_lamports=None),
+    )
+
+    assert outcome.command.status == CommandStatus.SUCCEEDED
+    assert repository.list_policy_decisions(outcome.command.id)[0].rule_id == "assemble-evidence"
+
+
 def test_read_only_profile_blocks_local_build(tmp_path: Path) -> None:
     journal, repository, _, _ = governed_runtime(tmp_path, profile=PolicyProfile.READ_ONLY)
 

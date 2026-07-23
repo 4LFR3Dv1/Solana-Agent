@@ -214,7 +214,7 @@ DEFAULT_RULES: tuple[PolicyRule, ...] = (
     ),
     PolicyRule(
         "assemble-evidence",
-        (PolicyProfile.LOCAL_SAFE, PolicyProfile.DEVNET_SAFE),
+        tuple(PolicyProfile),
         "evidence",
         "assemble",
         PolicyEffect.ALLOW,
