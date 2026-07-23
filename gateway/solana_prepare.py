@@ -26,8 +26,8 @@ from gateway.protocol import GatewayError
 from solana_agent.adapters.solana_rpc import RpcTransport, UrllibRpcTransport
 
 DEVNET_ENDPOINT = "https://api.devnet.solana.com"
-TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-ASSOCIATED_TOKEN_PROGRAM = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"  # ggignore: public program ID
+ASSOCIATED_TOKEN_PROGRAM = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"  # ggignore: public program ID
 EXECUTOR_VERSION = "0.2.0"
 _IDENTIFIER = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$")
 _AMOUNT = re.compile(r"^(0|[1-9][0-9]*)$")
