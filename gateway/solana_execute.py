@@ -7,6 +7,7 @@ import json
 import re
 import sqlite3
 from collections.abc import Callable, Mapping
+from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
@@ -16,9 +17,11 @@ from solders.message import from_bytes_versioned
 from solders.signature import Signature
 from solders.transaction import VersionedTransaction
 
+from gateway.chaos import ChaosHook, reach
 from gateway.protocol import GatewayError
 from gateway.solana_prepare import (
     PreparationRpc,
+    RpcDefinitiveRejection,
     SolanaPreparationBackend,
     _hash_bytes,
     _now_text,
@@ -72,7 +75,8 @@ class ExecutionStore:
 
     def __init__(self, path: Path) -> None:
         self.path = path
-        with self._connect() as connection:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with closing(self._connect()) as connection, connection:
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS execution_attempts (
@@ -91,14 +95,25 @@ class ExecutionStore:
                     rpc_submission_json TEXT,
                     status_observation_json TEXT,
                     receipt_json TEXT,
+                    broadcast_count INTEGER NOT NULL DEFAULT 1,
                     updated_at TEXT NOT NULL
                 )
                 """
             )
+            columns = {row["name"] for row in connection.execute("PRAGMA table_info(execution_attempts)").fetchall()}
+            if "broadcast_count" not in columns:
+                connection.execute(
+                    """
+                    ALTER TABLE execution_attempts
+                    ADD COLUMN broadcast_count INTEGER NOT NULL DEFAULT 1
+                    """
+                )
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=5)
         connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA journal_mode = WAL")
+        connection.execute("PRAGMA busy_timeout = 5000")
         return connection
 
     def claim(
@@ -114,7 +129,7 @@ class ExecutionStore:
         authorization: Mapping[str, Any],
         now: datetime,
     ) -> None:
-        with self._connect() as connection:
+        with closing(self._connect()) as connection, connection:
             connection.execute("BEGIN IMMEDIATE")
             existing = connection.execute(
                 """
@@ -164,9 +179,10 @@ class ExecutionStore:
                     signed_transaction_base64,
                     authorization_json,
                     state,
+                    broadcast_count,
                     signature_persisted_at,
                     updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'broadcast_started', ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'broadcast_started', 1, ?, ?)
                 """,
                 (
                     execution_request_id,
@@ -191,7 +207,7 @@ class ExecutionStore:
         now: datetime,
     ) -> None:
         timestamp = _now_text(now)
-        with self._connect() as connection:
+        with closing(self._connect()) as connection, connection:
             connection.execute("BEGIN IMMEDIATE")
             result = connection.execute(
                 """
@@ -218,7 +234,7 @@ class ExecutionStore:
                 )
 
     def mark_needs_recovery(self, execution_request_id: str, *, now: datetime) -> None:
-        with self._connect() as connection:
+        with closing(self._connect()) as connection, connection:
             connection.execute(
                 """
                 UPDATE execution_attempts
@@ -227,6 +243,35 @@ class ExecutionStore:
                 """,
                 (_now_text(now), execution_request_id),
             )
+
+    def record_definitive_rejection(
+        self,
+        execution_request_id: str,
+        *,
+        error: GatewayError,
+        now: datetime,
+    ) -> None:
+        timestamp = _now_text(now)
+        observation = {
+            "outcome": "definitive_rejection",
+            "error": error.as_dict(),
+        }
+        with closing(self._connect()) as connection, connection:
+            result = connection.execute(
+                """
+                UPDATE execution_attempts
+                SET state = 'failed',
+                    status_observation_json = ?,
+                    updated_at = ?
+                WHERE execution_request_id = ? AND state = 'broadcast_started'
+                """,
+                (_json(observation), timestamp, execution_request_id),
+            )
+            if result.rowcount != 1:
+                raise GatewayError(
+                    "needs_recovery",
+                    "definitive rejection could not be attached to the durable attempt",
+                )
 
     def record_observation(
         self,
@@ -239,7 +284,7 @@ class ExecutionStore:
     ) -> None:
         timestamp = _now_text(now)
         confirmed_at = timestamp if state == "confirmed" else None
-        with self._connect() as connection:
+        with closing(self._connect()) as connection, connection:
             connection.execute(
                 """
                 UPDATE execution_attempts
@@ -261,7 +306,7 @@ class ExecutionStore:
             )
 
     def get(self, execution_request_id: str) -> dict[str, Any] | None:
-        with self._connect() as connection:
+        with closing(self._connect()) as connection, connection:
             row = connection.execute(
                 "SELECT * FROM execution_attempts WHERE execution_request_id = ?",
                 (execution_request_id,),
@@ -281,6 +326,7 @@ class SolanaExecutionBackend(SolanaPreparationBackend):
         rpc: PreparationRpc | None = None,
         executor_id: str = "solana-agent",
         now: Callable[[], datetime] | None = None,
+        chaos_hook: ChaosHook | None = None,
     ) -> None:
         super().__init__(
             journal_path=journal_path,
@@ -291,6 +337,7 @@ class SolanaExecutionBackend(SolanaPreparationBackend):
         )
         self.authorization_verifier = authorization_verifier
         self.executions = ExecutionStore(journal_path)
+        self.chaos_hook = chaos_hook
 
     def authorize_and_execute(self, payload: dict[str, Any]) -> dict[str, Any]:
         if self.authorization_verifier is None:
@@ -321,6 +368,14 @@ class SolanaExecutionBackend(SolanaPreparationBackend):
         signed_transaction = VersionedTransaction.populate(versioned_message, [signature])
         signed_transaction_base64 = base64.b64encode(bytes(signed_transaction)).decode("ascii")
 
+        reach(
+            self.chaos_hook,
+            "after_execution_validated_before_claim",
+            {
+                "execution_request_id": execution_request_id,
+                "signature": str(signature),
+            },
+        )
         self.executions.claim(
             execution_request_id=execution_request_id,
             authorization_id=authorization["authorization_id"],
@@ -332,8 +387,24 @@ class SolanaExecutionBackend(SolanaPreparationBackend):
             authorization=authorization,
             now=now,
         )
+        reach(
+            self.chaos_hook,
+            "after_signature_and_broadcast_intent_persisted",
+            {
+                "execution_request_id": execution_request_id,
+                "signature": str(signature),
+            },
+        )
 
         try:
+            reach(
+                self.chaos_hook,
+                "before_send_transaction",
+                {
+                    "execution_request_id": execution_request_id,
+                    "signature": str(signature),
+                },
+            )
             rpc_response = self.rpc.call(
                 "sendTransaction",
                 [
@@ -352,6 +423,14 @@ class SolanaExecutionBackend(SolanaPreparationBackend):
                     "rpc_signature_mismatch",
                     "RPC returned a signature different from the persisted transaction signature",
                 )
+            reach(
+                self.chaos_hook,
+                "after_send_transaction_response_before_persist",
+                {
+                    "execution_request_id": execution_request_id,
+                    "signature": str(signature),
+                },
+            )
             receipt = self._receipt(
                 prepared,
                 authorization,
@@ -366,6 +445,13 @@ class SolanaExecutionBackend(SolanaPreparationBackend):
                 now=now,
             )
             return receipt
+        except RpcDefinitiveRejection as error:
+            self.executions.record_definitive_rejection(
+                execution_request_id,
+                error=error,
+                now=now,
+            )
+            raise
         except Exception as error:
             self.executions.mark_needs_recovery(execution_request_id, now=now)
             raise GatewayError(
@@ -751,6 +837,7 @@ def _public_attempt(attempt: Mapping[str, Any]) -> dict[str, Any]:
         "authorization": json.loads(attempt["authorization_json"]),
         "state": attempt["state"],
         "signature_persisted_at": attempt["signature_persisted_at"],
+        "broadcast_count": attempt["broadcast_count"],
         "submitted_at": attempt["submitted_at"],
         "confirmed_at": attempt["confirmed_at"],
         "rpc_submission": (json.loads(attempt["rpc_submission_json"]) if attempt["rpc_submission_json"] else None),

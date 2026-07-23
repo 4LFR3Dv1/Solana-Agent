@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import json
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -13,6 +15,7 @@ from solders.hash import Hash
 from solders.keypair import Keypair
 from solders.message import to_bytes_versioned
 from solders.pubkey import Pubkey
+from solders.signature import Signature
 from solders.transaction import VersionedTransaction
 
 from gateway.journal import GatewayJournal
@@ -20,9 +23,10 @@ from gateway.protocol import GatewayError
 from gateway.service import ExternalExecutionGateway
 from gateway.solana_execute import (
     Ed25519AuthorizationVerifier,
+    ExecutionStore,
     SolanaExecutionBackend,
 )
-from gateway.solana_prepare import ASSOCIATED_TOKEN_PROGRAM, TOKEN_PROGRAM
+from gateway.solana_prepare import ASSOCIATED_TOKEN_PROGRAM, TOKEN_PROGRAM, RpcDefinitiveRejection
 
 NOW = datetime(2026, 7, 23, 16, 0, tzinfo=UTC)
 
@@ -237,6 +241,7 @@ def backend(
     mint: Pubkey,
     authority: Keypair,
     rpc: ExecutionRpc,
+    chaos_hook: Any = None,
 ) -> SolanaExecutionBackend:
     return SolanaExecutionBackend(
         journal_path=path,
@@ -244,6 +249,7 @@ def backend(
         authorization_verifier=Ed25519AuthorizationVerifier(str(authority.pubkey())),
         rpc=rpc,
         now=lambda: NOW,
+        chaos_hook=chaos_hook,
     )
 
 
@@ -570,3 +576,131 @@ def test_execute_fails_closed_without_foundry_verifier(
     with pytest.raises(GatewayError, match="verification is required"):
         subject.authorize_and_execute(execution_payload(prepared, authority, asset_signer))
     assert rpc.broadcasts == []
+
+
+class InjectedKill(RuntimeError):
+    pass
+
+
+class RaisingChaosHook:
+    def __init__(self, point: str) -> None:
+        self.point = point
+        self.reached: list[str] = []
+
+    def reach(self, point: str, context: dict[str, Any]) -> None:
+        self.reached.append(point)
+        assert context["execution_request_id"] == "exec_001"
+        if point == self.point:
+            raise InjectedKill(point)
+
+
+def test_kill_before_claim_leaves_no_signature_or_broadcast_intent(
+    tmp_path: Path,
+    actors: tuple[Keypair, Pubkey, Pubkey, Keypair],
+) -> None:
+    asset_signer, _, _, authority = actors
+    subject, rpc, prepared = prepared_fixture(tmp_path / "gateway.sqlite3", actors)
+    subject.chaos_hook = RaisingChaosHook("after_execution_validated_before_claim")
+
+    with pytest.raises(InjectedKill):
+        subject.authorize_and_execute(execution_payload(prepared, authority, asset_signer))
+
+    assert subject.executions.get("exec_001") is None
+    assert rpc.broadcasts == []
+
+
+def test_kill_after_signature_persistence_leaves_durable_unknown_state(
+    tmp_path: Path,
+    actors: tuple[Keypair, Pubkey, Pubkey, Keypair],
+) -> None:
+    asset_signer, _, _, authority = actors
+    subject, rpc, prepared = prepared_fixture(tmp_path / "gateway.sqlite3", actors)
+    subject.chaos_hook = RaisingChaosHook("after_signature_and_broadcast_intent_persisted")
+
+    with pytest.raises(InjectedKill):
+        subject.authorize_and_execute(execution_payload(prepared, authority, asset_signer))
+
+    attempt = subject.executions.get("exec_001")
+    assert attempt is not None
+    assert attempt["state"] == "broadcast_started"
+    assert attempt["broadcast_count"] == 1
+    assert attempt["signature"] is not None
+    assert rpc.broadcasts == []
+
+
+def test_kill_after_rpc_response_is_recoverable_without_second_broadcast(
+    tmp_path: Path,
+    actors: tuple[Keypair, Pubkey, Pubkey, Keypair],
+) -> None:
+    asset_signer, _, _, authority = actors
+    subject, rpc, prepared = prepared_fixture(tmp_path / "gateway.sqlite3", actors)
+    subject.chaos_hook = RaisingChaosHook("after_send_transaction_response_before_persist")
+
+    with pytest.raises(GatewayError) as captured:
+        subject.authorize_and_execute(execution_payload(prepared, authority, asset_signer))
+
+    assert captured.value.code == "needs_recovery"
+    attempt = subject.executions.get("exec_001")
+    assert attempt is not None
+    assert attempt["state"] == "needs_recovery"
+    assert attempt["broadcast_count"] == 1
+    assert len(rpc.broadcasts) == 1
+
+
+def test_two_workers_contend_for_one_durable_execution_claim(tmp_path: Path) -> None:
+    path = tmp_path / "gateway.sqlite3"
+    first = ExecutionStore(path)
+    second = ExecutionStore(path)
+    arguments = {
+        "execution_request_id": "exec_concurrent",
+        "authorization_id": "auth_concurrent",
+        "prepared_message_hash": "sha256:" + "a" * 64,
+        "execution_commitment_hash": "sha256:" + "b" * 64,
+        "signer": str(Pubkey.new_unique()),
+        "signature": str(Signature.default()),
+        "signed_transaction_base64": base64.b64encode(b"signed").decode("ascii"),
+        "authorization": {"authorization_id": "auth_concurrent"},
+        "now": NOW,
+    }
+
+    def claim(store: ExecutionStore) -> str:
+        try:
+            store.claim(**arguments)
+        except GatewayError as error:
+            return error.code
+        return "claimed"
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(claim, (first, second)))
+
+    assert sorted(outcomes) == ["claimed", "needs_recovery"]
+    attempt = first.get("exec_concurrent")
+    assert attempt is not None
+    assert attempt["broadcast_count"] == 1
+
+
+def test_definitive_rpc_rejection_is_not_classified_as_unknown(
+    tmp_path: Path,
+    actors: tuple[Keypair, Pubkey, Pubkey, Keypair],
+) -> None:
+    asset_signer, _, _, authority = actors
+    subject, rpc, prepared = prepared_fixture(tmp_path / "gateway.sqlite3", actors)
+    original_call = rpc.call
+
+    def reject(method: str, params: list[Any]) -> dict[str, Any]:
+        if method == "sendTransaction":
+            raise RpcDefinitiveRejection(
+                "definitive_rejection",
+                "test rejection",
+            )
+        return original_call(method, params)
+
+    rpc.call = reject  # type: ignore[method-assign]
+    with pytest.raises(RpcDefinitiveRejection):
+        subject.authorize_and_execute(execution_payload(prepared, authority, asset_signer))
+
+    attempt = subject.executions.get("exec_001")
+    assert attempt is not None
+    assert attempt["state"] == "failed"
+    assert attempt["broadcast_count"] == 1
+    assert json.loads(attempt["status_observation_json"])["outcome"] == ("definitive_rejection")

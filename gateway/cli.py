@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, TextIO
 
 from gateway.backend import ExternalExecutionBackend, UnavailableExecutionBackend
+from gateway.chaos import KILL_POINTS, ProcessKillHook
 from gateway.journal import GatewayJournal
 from gateway.protocol import GatewayError, response_envelope
 from gateway.service import ExternalExecutionGateway
@@ -82,6 +83,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--executor-id", default="solana-agent")
     parser.add_argument("--rpc-endpoint", default=DEVNET_ENDPOINT)
+    parser.add_argument(
+        "--allow-test-rpc-proxy",
+        action="store_true",
+        help="test-only: permit an explicit localhost HTTP RPC proxy",
+    )
+    parser.add_argument(
+        "--chaos-kill-point",
+        choices=sorted(KILL_POINTS),
+        help="test-only: terminate the process at the selected execution boundary",
+    )
+    parser.add_argument(
+        "--chaos-sentinel",
+        type=Path,
+        help="test-only: atomically persist kill-point context before termination",
+    )
     return parser
 
 
@@ -94,12 +110,21 @@ def main(
     selected_backend = backend
     if selected_backend is None and args.signer is not None:
         verifier = Ed25519AuthorizationVerifier(args.foundry_authority) if args.foundry_authority is not None else None
+        chaos_hook = (
+            ProcessKillHook(args.chaos_kill_point, sentinel=args.chaos_sentinel)
+            if args.chaos_kill_point is not None
+            else None
+        )
         selected_backend = SolanaExecutionBackend(
             journal_path=args.journal,
             signer=args.signer,
             executor_id=args.executor_id,
-            rpc=JsonRpcClient(endpoint=args.rpc_endpoint),
+            rpc=JsonRpcClient(
+                endpoint=args.rpc_endpoint,
+                allow_localhost_proxy=args.allow_test_rpc_proxy,
+            ),
             authorization_verifier=verifier,
+            chaos_hook=chaos_hook,
         )
     gateway = ExternalExecutionGateway(
         GatewayJournal(args.journal),

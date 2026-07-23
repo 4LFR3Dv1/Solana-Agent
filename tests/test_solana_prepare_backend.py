@@ -15,6 +15,7 @@ from gateway.protocol import GatewayError
 from gateway.solana_prepare import (
     ASSOCIATED_TOKEN_PROGRAM,
     TOKEN_PROGRAM,
+    JsonRpcClient,
     SolanaPreparationBackend,
 )
 
@@ -309,9 +310,7 @@ def test_non_allowlisted_program_and_simulation_failure_create_no_preparation(
     assert failing.store.get("exec_001") is None
 
 
-def test_rpc_observation_rejects_floats(
-    tmp_path: Path, keys: tuple[Pubkey, Pubkey, Pubkey]
-) -> None:
+def test_rpc_observation_rejects_floats(tmp_path: Path, keys: tuple[Pubkey, Pubkey, Pubkey]) -> None:
     rpc = FakeRpc(
         signer=keys[0],
         destination=keys[1],
@@ -370,3 +369,19 @@ def test_time_expiry_is_short_lived(tmp_path: Path, keys: tuple[Pubkey, Pubkey, 
 
     assert later.status({"execution_request_id": "exec_001"})["state"] == "expired"
     assert "getBlockHeight" not in rpc.methods
+
+
+def test_rpc_client_allows_only_explicit_localhost_test_proxy() -> None:
+    local = JsonRpcClient(
+        endpoint="http://127.0.0.1:8899",
+        allow_localhost_proxy=True,
+    )
+    assert local.endpoint == "http://127.0.0.1:8899"
+
+    with pytest.raises(ValueError, match="canonical devnet"):
+        JsonRpcClient(endpoint="http://127.0.0.1:8899")
+    with pytest.raises(ValueError, match="canonical devnet"):
+        JsonRpcClient(
+            endpoint="https://rpc.other.example",
+            allow_localhost_proxy=True,
+        )
