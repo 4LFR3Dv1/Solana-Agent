@@ -37,6 +37,7 @@ class FakeRpc:
         decimals: int = 6,
         simulation_error: Any = None,
         block_height: int = 90,
+        rent_epoch: Any = 18446744073709551615,
     ) -> None:
         token_program = Pubkey.from_string(TOKEN_PROGRAM)
         ata_program = Pubkey.from_string(ASSOCIATED_TOKEN_PROGRAM)
@@ -52,6 +53,7 @@ class FakeRpc:
         self.decimals = decimals
         self.simulation_error = simulation_error
         self.block_height = block_height
+        self.rent_epoch = rent_epoch
         self.blockhash = str(Hash.new_unique())
         self.methods: list[str] = []
 
@@ -107,7 +109,13 @@ class FakeRpc:
                         "logs": ["Program Tokenkeg success"],
                         "preBalances": [10000, 1, 1, 1],
                         "postBalances": [5000, 1, 1, 1],
-                        "accounts": [{"data": ["AA==", "base64"]}],
+                        "accounts": [
+                            {
+                                "data": ["AA==", "base64"],
+                                "lamports": 2039280,
+                                "rentEpoch": self.rent_epoch,
+                            }
+                        ],
                         "unitsConsumed": 1714,
                         "fee": 5000,
                     },
@@ -270,6 +278,18 @@ def test_reapproved_forbidden_network_is_still_blocked_by_local_policy(
         subject.prepare(request)
 
 
+def test_source_and_destination_alias_is_blocked_before_rpc(
+    tmp_path: Path, keys: tuple[Pubkey, Pubkey, Pubkey]
+) -> None:
+    signer, _, mint = keys
+    rpc = FakeRpc(signer=signer, destination=signer, mint=mint)
+    subject, _ = backend(tmp_path / "alias.sqlite3", (signer, signer, mint), rpc=rpc)
+
+    with pytest.raises(GatewayError, match="source and destination must differ"):
+        subject.prepare(payload(signer, signer, mint))
+    assert rpc.methods == []
+
+
 def test_non_allowlisted_program_and_simulation_failure_create_no_preparation(
     tmp_path: Path, keys: tuple[Pubkey, Pubkey, Pubkey]
 ) -> None:
@@ -287,6 +307,22 @@ def test_non_allowlisted_program_and_simulation_failure_create_no_preparation(
     with pytest.raises(GatewayError, match="simulation failed"):
         failing.prepare(payload(*keys))
     assert failing.store.get("exec_001") is None
+
+
+def test_rpc_observation_rejects_floats(
+    tmp_path: Path, keys: tuple[Pubkey, Pubkey, Pubkey]
+) -> None:
+    rpc = FakeRpc(
+        signer=keys[0],
+        destination=keys[1],
+        mint=keys[2],
+        rent_epoch=1.5,
+    )
+    subject, _ = backend(tmp_path / "gateway.sqlite3", keys, rpc=rpc)
+
+    with pytest.raises(GatewayError, match="must not contain floats"):
+        subject.prepare(payload(*keys))
+    assert subject.store.get("exec_001") is None
 
 
 def test_any_message_change_changes_hash(tmp_path: Path, keys: tuple[Pubkey, Pubkey, Pubkey]) -> None:
@@ -333,3 +369,4 @@ def test_time_expiry_is_short_lived(tmp_path: Path, keys: tuple[Pubkey, Pubkey, 
     later, _ = backend(path, keys, rpc=rpc, now=NOW + timedelta(seconds=61))
 
     assert later.status({"execution_request_id": "exec_001"})["state"] == "expired"
+    assert "getBlockHeight" not in rpc.methods

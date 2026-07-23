@@ -241,6 +241,8 @@ class SolanaPreparationBackend:
         mint = _pubkey(plan["asset"]["mint"], "mint")
         source_owner = _pubkey(plan["source"], "source")
         destination_owner = _pubkey(plan["destination"], "destination")
+        if source_owner == destination_owner:
+            raise GatewayError("local_policy_block", "source and destination must differ")
         source_ata = _ata(source_owner, mint)
         destination_ata = _ata(destination_owner, mint)
         amount = int(plan["amount_base_units"])
@@ -320,9 +322,9 @@ class SolanaPreparationBackend:
             "simulated_at": _timestamp(now),
             "valid_until": _timestamp(valid_until),
             "logs_hash": _hash_json(simulation_value.get("logs") or []),
-            "pre_balances_hash": _hash_json(simulation_value.get("preBalances") or []),
-            "post_balances_hash": _hash_json(simulation_value.get("postBalances") or []),
-            "accounts_observed_hash": _hash_json(simulation_value.get("accounts") or []),
+            "pre_balances_hash": _hash_rpc_observation(simulation_value.get("preBalances") or []),
+            "post_balances_hash": _hash_rpc_observation(simulation_value.get("postBalances") or []),
+            "accounts_observed_hash": _hash_rpc_observation(simulation_value.get("accounts") or []),
             "programs_observed_hash": _hash_json([TOKEN_PROGRAM]),
             "units_consumed": _safe_int(simulation_value.get("unitsConsumed", 0), "units consumed"),
             "fee_lamports": _safe_int(simulation_value.get("fee", 0), "fee"),
@@ -386,8 +388,12 @@ class SolanaPreparationBackend:
         state = row["state"]
         if state == "prepared":
             expired_by_time = self._now() >= _parse_timestamp(prepared["expires_at"])
-            height_response = self.rpc.call("getBlockHeight", [{"commitment": "confirmed"}])
-            expired_by_height = _result_int(height_response, "getBlockHeight") > row["last_valid_block_height"]
+            expired_by_height = False
+            if not expired_by_time:
+                height_response = self.rpc.call("getBlockHeight", [{"commitment": "confirmed"}])
+                expired_by_height = (
+                    _result_int(height_response, "getBlockHeight") > row["last_valid_block_height"]
+                )
             if expired_by_time or expired_by_height:
                 state = "expired"
                 self.store.expire(row["execution_request_id"])
@@ -613,6 +619,31 @@ def _pubkey(value: Any, label: str) -> Pubkey:
 
 def _hash_json(value: Any) -> str:
     return _hash_bytes(rfc8785.dumps(value))
+
+
+def _hash_rpc_observation(value: Any) -> str:
+    """Hash RPC snapshots after converting every integer to a decimal string.
+
+    Solana may return u64 values such as ``rentEpoch = 2**64 - 1``. Those
+    values are valid RPC observations but outside the JCS/IEEE-754 safe integer
+    domain. External protocol objects remain strict; this normalization applies
+    only to opaque simulation observations before hashing.
+    """
+    return _hash_json(_normalize_rpc_observation(value))
+
+
+def _normalize_rpc_observation(value: Any) -> Any:
+    if isinstance(value, bool) or value is None or isinstance(value, str):
+        return value
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        raise GatewayError("invalid_rpc_response", "RPC observations must not contain floats")
+    if isinstance(value, list):
+        return [_normalize_rpc_observation(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _normalize_rpc_observation(item) for key, item in value.items()}
+    raise GatewayError("invalid_rpc_response", "RPC observation contains an unsupported value")
 
 
 def _hash_bytes(value: bytes) -> str:

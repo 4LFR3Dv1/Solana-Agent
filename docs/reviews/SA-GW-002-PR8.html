@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SA-GW-002 — PR #8 review</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 860px; margin: 3rem auto; padding: 0 1.25rem; line-height: 1.55; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #8886; padding: .6rem; text-align: left; }
+    code { overflow-wrap: anywhere; }
+    .pass { color: #16803c; font-weight: 700; }
+    .note { border-left: 4px solid #d99b00; padding-left: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>SA-GW-002 — PR #8 review</h1>
+  <p><strong>Decision:</strong> <span class="pass">merge-ready for its prepare-only devnet scope</span>.</p>
+
+  <table>
+    <thead><tr><th>Dimension</th><th>Grade</th><th>Evidence</th></tr></thead>
+    <tbody>
+      <tr><td>Security</td><td>B</td><td>Closed schemas, exact-byte commitment, no signer or broadcast path, GitGuardian clean.</td></tr>
+      <tr><td>Correctness</td><td>A</td><td>Real SPL fixture, successful devnet simulation, independent on-chain verification.</td></tr>
+      <tr><td>Error handling</td><td>A</td><td>Protocol-safe failures, fail-closed RPC validation, offline time-expiry recovery.</td></tr>
+      <tr><td>Testing</td><td>B</td><td>140 tests pass; live evidence exists but is not an automated CI job.</td></tr>
+      <tr><td>Organization</td><td>A</td><td>Transport, backend, journal, protocol, and evidence boundaries remain separate.</td></tr>
+      <tr><td>Documentation</td><td>A</td><td>Protocol, recovery semantics, RPC normalization, and public proof are documented.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Resolved during review</h2>
+  <ol>
+    <li>Blocked source/destination owner aliasing before any RPC call.</li>
+    <li>Made known time expiry independent of RPC availability.</li>
+    <li>Normalized valid Solana <code>u64</code> RPC observations without weakening strict JCS validation of external objects.</li>
+  </ol>
+
+  <h2>Verification</h2>
+  <ul>
+    <li><code>pytest</code>: 140 passed, 2 environment-gated integrations skipped.</li>
+    <li>Ruff, MyPy, compileall, GitHub CI for Python 3.11/3.13, and GitGuardian passed.</li>
+    <li>Live <code>prepare</code>, replay, restart, <code>status</code>, <code>recover</code>, and <code>evidence</code> passed.</li>
+    <li>The gateway contains no private-key input, signing operation, or broadcast RPC.</li>
+  </ul>
+
+  <p class="note"><strong>Non-blocking next improvement:</strong> add an opt-in scheduled devnet integration job using the public fixture. This review does not mark the system mainnet-ready; execution authorization and signer boundaries belong to later work items.</p>
+</body>
+</html>

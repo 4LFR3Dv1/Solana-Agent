@@ -105,7 +105,15 @@ SHA-256 over the exact serialized versioned message bytes.
 The economic source and destination are wallet owners. Associated token
 accounts are derived deterministically. Preparation verifies mint ownership,
 decimals, token-account owners, source balance, RPC genesis hash, recent
-blockhash, fee, and simulation result.
+blockhash, fee, and simulation result. Source and destination owners must
+differ, preventing the two writable token-account roles from aliasing.
+
+RPC simulation observations are normalized separately from external protocol
+objects before hashing: every observed integer becomes its unsigned decimal
+string representation. This accommodates valid Solana `u64` fields such as
+`rentEpoch = 18446744073709551615` without weakening the JCS safe-integer
+rejection applied to Foundry requests. RPC floats and unsupported values remain
+invalid.
 
 ## Expiry and recovery
 
@@ -116,4 +124,6 @@ commitment, and future execution authorization.
 
 Because SA-GW-002 never broadcasts, recovery can only report
 `failed_before_broadcast`. Rematerialization is allowed only after the previous
-preparation is proven expired.
+preparation is proven expired. Time expiry is evaluated locally before any
+block-height query, so a known-expired preparation remains recoverable while
+the RPC is unavailable.
