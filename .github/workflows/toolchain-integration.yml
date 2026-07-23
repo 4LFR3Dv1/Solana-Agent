@@ -95,7 +95,10 @@ jobs:
           4gjwNapmrXwn7rD7GhGaz3awC8fzK6S3YeQro6b2W37wNZWq2mNZMBTohCqNBZwSQP8f2KF6GT8z1vpgYAzgXvvL"
       - name: Render short proof video
         if: github.event_name == 'pull_request' && github.head_ref == 'agent/devnet-e2e'
-        run: bash scripts/solana/render_proof_video.sh .live-proof/public-summary.json
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ffmpeg
+          bash scripts/solana/render_proof_video.sh .live-proof/public-summary.json
       - name: Upload sanitized live proof
         if: always() && github.event_name == 'pull_request' && github.head_ref == 'agent/devnet-e2e'
         uses: actions/upload-artifact@v4
