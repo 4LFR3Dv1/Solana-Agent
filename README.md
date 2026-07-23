@@ -23,6 +23,7 @@ This repository currently defines:
 - a transactional command journal in `solana_agent/execution/`
 - fail-closed policy and bound approvals in `solana_agent/authority/`
 - a declarative DAG mission engine in `solana_agent/missions/`
+- an independent external execution gateway in `gateway/`
 
 The target runtime will complement coding agents, Solana Developer MCP,
 Anchor, and Solana CLI. Coding agents may propose work; the runtime remains
@@ -116,6 +117,16 @@ python -m solana_agent run create-counter \
   --approve-deploy
 ```
 
+Run the external JSONL gateway. Its default backend fails closed until
+`SA-GW-002` connects Solana preparation:
+
+```bash
+solana-agent-gateway --journal .solana-agent/gateway.sqlite3
+```
+
+The envelope, replay, and recovery contract is documented in the
+[external execution gateway guide](docs/external-execution-gateway.md).
+
 On Windows, the runtime defaults to WSL for Solana and Anchor commands.
 The WSL distro and user can be configured with `SOLANA_AGENT_WSL_DISTRO` and `SOLANA_AGENT_WSL_USER`.
 
@@ -145,6 +156,7 @@ runtime invariants are documented in [CONTRIBUTING.md](CONTRIBUTING.md).
 solana-agent/
   agent.md
   solana_agent/
+  gateway/
   tests/
   skills/
   missions/
