@@ -39,9 +39,10 @@ dev = [
 
 [project.scripts]
 solana-agent = "solana_agent.cli:main"
+solana-agent-gateway = "gateway.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["solana_agent*"]
+include = ["solana_agent*", "gateway*"]
 
 [tool.setuptools.package-data]
 solana_agent = ["py.typed"]
@@ -78,7 +79,7 @@ markers = [
 
 [tool.coverage.run]
 branch = true
-source = ["solana_agent"]
+source = ["solana_agent", "gateway"]
 
 [tool.coverage.report]
 show_missing = true
